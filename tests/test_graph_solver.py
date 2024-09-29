@@ -1,5 +1,5 @@
 import polars as pl
-from polars_graph import graph_solver
+from polars_grouper import graph_solver
 
 
 def test_piglatinnify():

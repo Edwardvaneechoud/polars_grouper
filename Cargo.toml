@@ -1,10 +1,10 @@
 [package]
-name = "polars-graph"
+name = "polars-grouper" # Updated to match the new name
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "polars_graph"
+name = "polars_grouper"
 crate-type = ["cdylib"]
 
 [dependencies]

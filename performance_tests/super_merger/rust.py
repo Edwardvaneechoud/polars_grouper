@@ -1,4 +1,4 @@
-from polars_graph import graph_solver
+from polars_grouper import graph_solver
 import polars as pl
 from typing import TypeVar
 
