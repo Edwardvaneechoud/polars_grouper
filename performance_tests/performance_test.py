@@ -22,7 +22,7 @@ def test_bfs():
 
 
 def test_rust():
-    r = super_merger_rust(df, 'from', 'to').select('group')
+    super_merger_rust(df, 'from', 'to').select('group')
 
 
 # Run the performance tests
