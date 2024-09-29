@@ -6,4 +6,5 @@ venv
 *.so
 *.dll
 *.pyd
-
+myenv
+*.parquet
