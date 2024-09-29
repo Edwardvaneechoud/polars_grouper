@@ -40,9 +40,6 @@ jobs:
         run: rustup show
       - uses: mozilla-actions/sccache-action@v0.0.3
 
-      - name: Install Nightly Rust Toolchain
-        run: rustup toolchain install nightly
-
       # Set up virtual environment instead of 'make .venv'
       - name: Set up virtual environment
         run: python -m venv .venv
