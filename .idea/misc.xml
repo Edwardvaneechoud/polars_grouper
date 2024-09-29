@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="supermerger_311" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="supermerger_311" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12 (polars_graph)" project-jdk-type="Python SDK" />
 </project>

@@ -1,14 +1,15 @@
 import polars as pl
-from polars_graph import pig_latinnify
+from polars_graph import graph_solver
 
 
 def test_piglatinnify():
     df = pl.DataFrame(
         {
-            "english": ["this", "is", "not", "pig", "latin"],
+            "from": ["A", "B", "C", "E", "F", "G", "I"],
+            "to": ["B", "C", "D", "F", "G", "J", "K"]
         }
     )
-    result = df.with_columns(pig_latin=pig_latinnify("english"))
+    result = df.select(graph_solver(pl.col("from"), pl.col("to")))
 
     expected_df = pl.DataFrame(
         {

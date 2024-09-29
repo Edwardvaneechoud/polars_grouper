@@ -1,81 +1,89 @@
-#![allow(clippy::unused_unit)]
 use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
-use std::collections::{HashMap, HashSet, VecDeque};
+use ahash::AHashMap;
 
-type Graph = HashMap<String, HashSet<String>>;
+#[polars_expr(output_type = UInt32)]
+fn graph_solver(inputs: &[Series]) -> PolarsResult<Series> {
+    let from = inputs[0].str()?;
+    let to = inputs[1].str()?;
 
-fn bfs(start_node: &str, graph: &Graph, visited: &mut HashSet<String>, component: &mut Vec<String>) {
-    let mut queue = VecDeque::new();
-    queue.push_back(start_node.to_string());
-    visited.insert(start_node.to_string());
+    // Map strings to integer IDs
+    let mut node_to_id = AHashMap::with_capacity(from.len() + to.len());
+    let mut id_counter = 0usize;
 
-    while let Some(node) = queue.pop_front() {
-        component.push(node.clone());
+    from.into_iter().chain(to.into_iter()).for_each(|val| {
+        if let Some(node) = val {
+            node_to_id.entry(node).or_insert_with(|| {
+                let id = id_counter;
+                id_counter += 1;
+                id
+            });
+        }
+    });
 
-        if let Some(neighbors) = graph.get(&node) {
-            for neighbor in neighbors {
-                if visited.insert(neighbor.clone()) {
-                    queue.push_back(neighbor.clone());
+    let num_nodes = id_counter;
+    let mut adj_list = vec![Vec::new(); num_nodes];
+
+    // Build the adjacency list
+    inputs[0]
+        .str()?
+        .into_iter()
+        .zip(inputs[1].str()?.into_iter())
+        .for_each(|(f_opt, t_opt)| {
+            if let (Some(f), Some(t)) = (f_opt, t_opt) {
+                let f_id = node_to_id[&f];
+                let t_id = node_to_id[&t];
+                adj_list[f_id].push(t_id);
+                adj_list[t_id].push(f_id);
+            }
+        });
+
+    // Initialize visited vector and group IDs
+    let mut visited = vec![false; num_nodes];
+    let mut group_ids = vec![0u32; num_nodes];
+    let mut group_counter = 1u32;
+
+    // Perform BFS to find connected components
+    for node_id in 0..num_nodes {
+        if !visited[node_id] {
+            let mut queue = Vec::new(); // Using Vec instead of VecDeque
+            queue.push(node_id);
+            visited[node_id] = true;
+            group_ids[node_id] = group_counter;
+
+            while let Some(current) = queue.pop() {
+                for &neighbor in &adj_list[current] {
+                    if !visited[neighbor] {
+                        visited[neighbor] = true;
+                        group_ids[neighbor] = group_counter;
+                        queue.push(neighbor);
+                    }
                 }
             }
-        }
-    }
-}
 
-fn find_connected_components(graph: &Graph) -> Vec<Vec<String>> {
-    let mut visited = HashSet::new();
-    let mut components = Vec::new();
-
-    for node in graph.keys() {
-        if !visited.contains(node) {
-            let mut component = Vec::new();
-            bfs(node, graph, &mut visited, &mut component);
-            components.push(component);
+            group_counter += 1;
         }
     }
 
-    components
-}
+    // Map back to the original data
+    let mut result_values = Vec::with_capacity(inputs[0].len());
 
-#[polars_expr(output_type=String)]
-fn graph_solver(inputs: &[Series]) -> PolarsResult<Series> {
-    let from: &StringChunked = inputs[0].str()?;
-    let to: &StringChunked = inputs[1].str()?;
+    inputs[0]
+        .str()?
+        .into_iter()
+        .zip(inputs[1].str()?.into_iter())
+        .for_each(|(f_opt, t_opt)| {
+            let node_opt = f_opt.or(t_opt);
+            if let Some(node) = node_opt {
+                let node_id = node_to_id[&node];
+                let group_id = group_ids[node_id];
+                result_values.push(Some(group_id));
+            } else {
+                result_values.push(None);
+            }
+        });
 
-    let mut graph: Graph = HashMap::with_capacity(from.len());
+    let result = UInt32Chunked::new("group".into(), result_values);
 
-    // Construct the graph with less cloning
-    for (f, t) in from.iter().zip(to.iter()) {
-        if let (Some(f), Some(t)) = (f, t) {
-            graph.entry(f.to_string()).or_default().insert(t.to_string());
-            graph.entry(t.to_string()).or_default().insert(f.to_string());
-        } else if let Some(f) = f {
-            graph.entry(f.to_string()).or_default();
-        } else if let Some(t) = t {
-            graph.entry(t.to_string()).or_default();
-        }
-    }
-
-    let components = find_connected_components(&graph);
-    let mut node_to_group = HashMap::with_capacity(graph.len());
-
-    for (i, component) in components.iter().enumerate() {
-        let group = (i + 1).to_string(); // Group numbers start from 1
-        for node in component {
-            node_to_group.insert(node.as_str(), group.clone());
-        }
-    }
-
-    // Map nodes back to their group numbers, avoiding extra allocations
-    let mut result = Vec::with_capacity(from.len());
-    for (f, t) in from.iter().zip(to.iter()) {
-        if let Some(node) = f.or(t) {
-            result.push(node_to_group.get(node).cloned());
-        } else {
-            result.push(None);
-        }
-    }
-
-    Ok(StringChunked::from_iter_options("group".into(), result.into_iter()).into_series())
+    Ok(result.into_series())
 }
