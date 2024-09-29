@@ -9,15 +9,12 @@ def test_piglatinnify():
             "to": ["B", "C", "D", "F", "G", "J", "K"]
         }
     )
-    result = df.select(graph_solver(pl.col("from"), pl.col("to")))
+    result = df.select(graph_solver(pl.col("from"), pl.col("to")).alias('group'))
 
     expected_df = pl.DataFrame(
         {
-            "english": ["this", "is", "not", "pig", "latin"],
-            "pig_latin": ["histay", "siay", "otnay", "igpay", "atinlay"],
+            "group": [1, 1, 1, 2, 2, 2, 3]
         }
     )
 
     assert result.equals(expected_df)
-
-
