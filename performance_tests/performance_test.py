@@ -5,7 +5,7 @@ from performance_tests.super_merger.rust import super_merger_rust
 import polars as pl
 import timeit
 
-df = pl.read_parquet('performance_tests/data/data_10000.parquet')
+df = pl.read_parquet('performance_tests/data/data_100000.parquet')
 
 
 # Define a wrapper function for each implementation to use in timeit
@@ -22,7 +22,7 @@ def test_bfs():
 
 
 def test_rust():
-    r = super_merger_rust(df, 'from', 'to').select('group').unique()
+    r = super_merger_rust(df, 'from', 'to').select('group')
 
 
 # Run the performance tests
