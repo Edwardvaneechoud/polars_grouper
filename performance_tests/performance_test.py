@@ -22,24 +22,24 @@ def test_bfs():
 
 
 def test_rust():
-    super_merger_rust(df, 'from', 'to').select('group')
+    super_merger_rust(df, 'from', 'to')
 
 
 # Run the performance tests
 num_runs = 10  # Set the number of times to run each function
-
-# Time the simple implementation
-simple_time = timeit.timeit("test_simple()", globals=globals(), number=num_runs)
-print(f"Average time for super_merger_simple: {simple_time / num_runs:.4f} seconds per run")
-
-# Time the NetworkX implementation
-networkx_time = timeit.timeit("test_networkx()", globals=globals(), number=num_runs)
-print(f"Average time for super_merger_networkx: {networkx_time / num_runs:.4f} seconds per run")
-
-# Time the BFS implementation
-bfs_time = timeit.timeit("test_bfs()", globals=globals(), number=num_runs)
-print(f"Average time for super_merger_bfs: {bfs_time / num_runs:.4f} seconds per run")
 #
+# # Time the simple implementation
+# simple_time = timeit.timeit("test_simple()", globals=globals(), number=num_runs)
+# print(f"Average time for super_merger_simple: {simple_time / num_runs:.4f} seconds per run")
+#
+# # Time the NetworkX implementation
+# networkx_time = timeit.timeit("test_networkx()", globals=globals(), number=num_runs)
+# print(f"Average time for super_merger_networkx: {networkx_time / num_runs:.4f} seconds per run")
+#
+# # Time the BFS implementation
+# bfs_time = timeit.timeit("test_bfs()", globals=globals(), number=num_runs)
+# print(f"Average time for super_merger_bfs: {bfs_time / num_runs:.4f} seconds per run")
+# #
 # # Time the Rust implementation
 rust_time = timeit.timeit("test_rust()", globals=globals(), number=num_runs)
 print(f"Average time for super_merger_rust: {rust_time / num_runs:.4f} seconds per run")
