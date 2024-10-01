@@ -13,3 +13,6 @@ pyo3-polars = { version = "0.17.0", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 ahash = "0.8.11"
 polars = { version = "0.43.1", default-features = false }
+hashbrown = "0.15.0"
+smallvec = "1.13.2"
+petgraph = "0.6.5"

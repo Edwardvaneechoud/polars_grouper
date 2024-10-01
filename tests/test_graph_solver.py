@@ -17,7 +17,7 @@ def test_graph_solver():
 
     expected_df = pl.DataFrame(
         {
-            "group": [1, 1, 1, 2, 2, 2, 3]
+            "group": [0, 0, 0, 3, 3, 3, 6]
         }
     )
 
@@ -40,7 +40,7 @@ def test_super_merger():
         {
             "from": ["A", "B", "C", "E", "F", "G", "I"],
             "to": ["B", "C", "D", "F", "G", "J", "K"],
-            "group": [1, 1, 1, 2, 2, 2, 3]
+            "group": [0, 0, 0, 3, 3, 3, 6]
         }
     )
 
@@ -86,7 +86,7 @@ def test_supermerger_with_single_component():
         {
             "from": ["A", "B", "C"],
             "to": ["B", "C", "A"],
-            "group": [1, 1, 1]
+            "group": [0, 0, 0]
         }
     )
 
