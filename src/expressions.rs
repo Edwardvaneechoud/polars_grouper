@@ -31,17 +31,22 @@ impl UnionFind {
 
         if root_x != root_y {
             // Union by rank
-            if self.rank[root_x] > self.rank[root_y] {
-                self.parent[root_y] = root_x;
-            } else if self.rank[root_x] < self.rank[root_y] {
-                self.parent[root_x] = root_y;
-            } else {
-                self.parent[root_y] = root_x;
-                self.rank[root_x] += 1;
+            match self.rank[root_x].cmp(&self.rank[root_y]) {
+                std::cmp::Ordering::Greater => {
+                    self.parent[root_y] = root_x;
+                }
+                std::cmp::Ordering::Less => {
+                    self.parent[root_x] = root_y;
+                }
+                std::cmp::Ordering::Equal => {
+                    self.parent[root_y] = root_x;
+                    self.rank[root_x] += 1;
+                }
             }
         }
     }
 }
+
 
 #[polars_expr(output_type = UInt32)]
 fn graph_solver(inputs: &[Series]) -> PolarsResult<Series> {
