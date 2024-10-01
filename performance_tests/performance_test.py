@@ -5,7 +5,7 @@ from performance_tests.super_merger.rust import super_merger_rust
 import polars as pl
 import timeit
 
-df = pl.read_parquet('performance_tests/data/data_100000.parquet')
+df = pl.read_parquet('performance_tests/data/data_100.parquet')
 
 
 # Define a wrapper function for each implementation to use in timeit
@@ -29,8 +29,8 @@ def test_rust():
 num_runs = 10  # Set the number of times to run each function
 #
 # # Time the simple implementation
-# simple_time = timeit.timeit("test_simple()", globals=globals(), number=num_runs)
-# print(f"Average time for super_merger_simple: {simple_time / num_runs:.4f} seconds per run")
+simple_time = timeit.timeit("test_simple()", globals=globals(), number=num_runs)
+print(f"Average time for super_merger_simple: {simple_time / num_runs:.4f} seconds per run")
 #
 # # Time the NetworkX implementation
 # networkx_time = timeit.timeit("test_networkx()", globals=globals(), number=num_runs)
@@ -43,3 +43,5 @@ num_runs = 10  # Set the number of times to run each function
 # # Time the Rust implementation
 rust_time = timeit.timeit("test_rust()", globals=globals(), number=num_runs)
 print(f"Average time for super_merger_rust: {rust_time / num_runs:.4f} seconds per run")
+
+print(simple_time/rust_time)
