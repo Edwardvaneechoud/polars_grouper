@@ -161,6 +161,6 @@ def create_sample_data_complex(num_groups: int = 1_000, cross_group_edges: int =
     print(f"Total time taken: {end_time - start_time:.2f} seconds")
     print(f"Time taken to save DataFrame to Parquet: {end_time - after_df_time:.2f} seconds")
 
-for i in range(1, 6):
+for i in range(1, 7):
     print(10**i)
     create_sample_data_complex(10**i)

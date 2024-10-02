@@ -1,6 +1,5 @@
 import polars as pl
 
-
 def super_merger_simple(df: pl.DataFrame, from_col_name: str, to_col_name: str) -> pl.DataFrame:
     """
     Find connected components from a Polars DataFrame of edges and add the group information.
@@ -18,49 +17,69 @@ def super_merger_simple(df: pl.DataFrame, from_col_name: str, to_col_name: str) 
     -------
     pl.DataFrame
         The input DataFrame with an additional 'group' column representing the connected component group.
-
-    Examples
-    --------
-    >>> df = pl.DataFrame({
-    ...     "from": ["A", "B", "C", "E", "F", "G"],
-    ...     "to": ["B", "C", "D", "F", "G", "H"]
-    ... })
-    >>> result_df = super_merger_simple(df, "from", "to")
-    >>> print(result_df)
-
-    Notes
-    -----
-    - This implementation finds connected components by iterating through each edge.
-    - It assigns group numbers in a greedy manner based on whether nodes have already been assigned to a group.
-    - If neither node has been assigned, it creates a new group.
-    - If one of the nodes is in a group, it assigns the other to that same group.
-    - This version is the most stright forward and simple implementation.
     """
     # Convert the DataFrame into a list of edges
     edges = df.select([pl.col(from_col_name), pl.col(to_col_name)]).to_numpy().tolist()
 
-    # Initialize the group tracking
-    node_to_group = {}
-    group_idx = 1
-
-    # Iterate over the edges to assign group numbers
+    # Step 1: Map nodes to unique integer IDs
+    node_to_id = {}
+    id_counter = 0
     for from_node, to_node in edges:
-        if from_node not in node_to_group and to_node not in node_to_group:
-            # Create a new group for both nodes
-            node_to_group[from_node] = group_idx
-            node_to_group[to_node] = group_idx
-            group_idx += 1
-        elif from_node in node_to_group and to_node not in node_to_group:
-            # Assign the group of `from_node` to `to_node`
-            node_to_group[to_node] = node_to_group[from_node]
-        elif to_node in node_to_group and from_node not in node_to_group:
-            # Assign the group of `to_node` to `from_node`
-            node_to_group[from_node] = node_to_group[to_node]
+        if from_node not in node_to_id:
+            node_to_id[from_node] = id_counter
+            id_counter += 1
+        if to_node not in node_to_id:
+            node_to_id[to_node] = id_counter
+            id_counter += 1
 
-    # Create the group column based on the assignments
-    groups = [node_to_group.get(node, None) for node in df["from"].to_list()]
+    num_nodes = id_counter
 
-    # Add the group information back to the DataFrame
+    # Step 2: Create closures for Union-Find operations
+    parent = list(range(num_nodes))
+    rank = [0] * num_nodes
+
+    # Closure for `find` with path compression
+    def find(node):
+        if parent[node] != node:
+            parent[node] = find(parent[node])  # Path compression
+        return parent[node]
+
+    # Closure for `union` with union by rank
+    def union(node1, node2):
+        root1 = find(node1)
+        root2 = find(node2)
+
+        if root1 != root2:
+            # Union by rank
+            if rank[root1] > rank[root2]:
+                parent[root2] = root1
+            elif rank[root1] < rank[root2]:
+                parent[root1] = root2
+            else:
+                parent[root2] = root1
+                rank[root1] += 1
+
+    # Step 3: Process each edge with the union operation
+    for from_node, to_node in edges:
+        node1 = node_to_id[from_node]
+        node2 = node_to_id[to_node]
+        union(node1, node2)
+
+    # Step 4: Assign unique group IDs based on the root representative of each node
+    group_mapping = {}
+    group_counter = 1
+
+    # Find root for each node in the original DataFrame and assign a group ID
+    groups = []
+    for from_node in df[from_col_name].to_list():
+        root = find(node_to_id[from_node])
+        if root not in group_mapping:
+            group_mapping[root] = group_counter
+            group_counter += 1
+        groups.append(group_mapping[root])
+
+    # Step 5: Add the group information back to the DataFrame
     df = df.with_columns(group=pl.Series("group", groups))
 
     return df
+

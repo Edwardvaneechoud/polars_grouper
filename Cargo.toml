@@ -16,3 +16,6 @@ polars = { version = "0.43.1", default-features = false }
 hashbrown = "0.15.0"
 smallvec = "1.13.2"
 petgraph = "0.6.5"
+dashmap = "6.1.0"
+rayon = "1.10.0"
+rustc-hash = "2.0.0"
