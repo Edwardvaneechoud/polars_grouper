@@ -1,5 +1,4 @@
 from performance_tests.super_merger.simple import super_merger_simple
-from performance_tests.super_merger.bfs import super_merger_bfs
 from performance_tests.super_merger.rust import super_merger_rust
 import polars as pl
 import time
@@ -20,7 +19,7 @@ def measure_time(func, df, name, num_runs=10):
 
 
 # Loop through different sizes of data
-for size in [100, 1000, 10000, 100000]:
+for size in [100, 1000, 10000, 100000, 1000000]:
     print(f"Running tests for dataset size: {size}")
 
     # Load the dataset
@@ -28,7 +27,7 @@ for size in [100, 1000, 10000, 100000]:
     # ndf = df.rename({'from': 'to', 'to': 'from'})
     #df = pl.concat([df, ndf], how='diagonal_relaxed')
     if size == 1000000:
-        n_runs = 1
+        n_runs = 2
     elif size == 100000:
         n_runs = 5
     else:

@@ -1,130 +1,159 @@
 use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
-use rustc_hash::FxHashMap; // FxHashMap for faster hashing
+use rustc_hash::{FxHashMap, FxBuildHasher};
 use smallvec::SmallVec;
+use std::convert::TryFrom;
 
-struct UnionFind {
-    nodes: SmallVec<[u64; 1024]>, // Combined representation of (parent, rank) packed in an u64
+trait AsUsize {
+    fn as_usize(&self) -> usize;
 }
 
-impl UnionFind {
+impl AsUsize for u16 {
+    fn as_usize(&self) -> usize {
+        *self as usize
+    }
+}
+
+impl AsUsize for u32 {
+    fn as_usize(&self) -> usize {
+        *self as usize
+    }
+}
+
+impl AsUsize for u64 {
+    fn as_usize(&self) -> usize {
+        *self as usize
+    }
+}
+
+fn usize_to_t<T>(value: usize) -> T
+where
+    T: TryFrom<usize>,
+    <T as TryFrom<usize>>::Error: std::fmt::Debug,
+{
+    T::try_from(value).expect("Invalid conversion from usize")
+}
+
+struct UnionFind<T>
+where
+    T: Copy + PartialEq + AsUsize,
+{
+    nodes: Vec<T>,
+}
+
+impl<T> UnionFind<T>
+where
+    T: Copy + PartialEq + AsUsize + TryFrom<usize>,
+    <T as TryFrom<usize>>::Error: std::fmt::Debug,
+{
     fn new(size: usize) -> Self {
         UnionFind {
-            nodes: (0..size).map(|i| i as u64).collect(), // Initialize parent as self, rank as 0
+            nodes: (0..size)
+                .map(|i| usize_to_t(i))
+                .collect(),
         }
     }
 
     #[inline(always)]
-    fn extract_parent(val: u64) -> usize {
-        (val & 0xFFFFFFFF) as usize
-    }
-
-    #[inline(always)]
-    fn extract_rank(val: u64) -> usize {
-        (val >> 32) as usize
-    }
-
-    #[inline(always)]
-    fn set_rank_parent(&mut self, idx: usize, parent: usize, rank: usize) {
-        self.nodes[idx] = ((rank as u64) << 32) | (parent as u64);
-    }
-
-    #[inline(always)]
-    fn find(&mut self, mut x: usize) -> usize {
-        let mut root = x;
-        while root != Self::extract_parent(self.nodes[root]) {
-            root = Self::extract_parent(self.nodes[root]);
-        }
-        // Two-step compression for efficiency
-        while x != root {
-            let parent = Self::extract_parent(self.nodes[x]);
-            self.set_rank_parent(x, root, Self::extract_rank(self.nodes[x]));
+    fn find(&mut self, mut x: T) -> T {
+        while x != self.nodes[x.as_usize()] {
+            let parent = self.nodes[x.as_usize()];
+            self.nodes[x.as_usize()] = self.nodes[parent.as_usize()];
             x = parent;
         }
-        root
+        x
     }
 
     #[inline(always)]
-    fn union(&mut self, x: usize, y: usize) {
+    fn union(&mut self, x: T, y: T) {
         let root_x = self.find(x);
         let root_y = self.find(y);
-
         if root_x != root_y {
-            let rank_x = Self::extract_rank(self.nodes[root_x]);
-            let rank_y = Self::extract_rank(self.nodes[root_y]);
-            if rank_x > rank_y {
-                self.set_rank_parent(root_y, root_x, rank_y);
-            } else if rank_x < rank_y {
-                self.set_rank_parent(root_x, root_y, rank_x);
-            } else {
-                self.set_rank_parent(root_y, root_x, rank_y);
-                self.set_rank_parent(root_x, root_x, rank_x + 1);
-            }
+            self.nodes[root_y.as_usize()] = root_x;
         }
     }
 }
 
-#[polars_expr(output_type = UInt32)]
+#[polars_expr(output_type = UInt64)]
 fn graph_solver(inputs: &[Series]) -> PolarsResult<Series> {
-    let from = inputs[0].str()?;
-    let to = inputs[1].str()?;
+    let from = if inputs[0].dtype() == &DataType::String {
+        inputs[0].str()?.clone()
+    } else {
+        inputs[0].cast(&DataType::String)?.str()?.clone()
+    };
 
-    // Step 1: Map nodes to unique IDs during edge processing to avoid multiple passes
-    let mut node_to_id: FxHashMap<&str, usize> = FxHashMap::default();
-    let mut id_counter: usize = 0;
-    let mut edges = SmallVec::<[(usize, usize); 1024]>::new();
+    let to = if inputs[1].dtype() == &DataType::String {
+        inputs[1].str()?.clone()
+    } else {
+        inputs[1].cast(&DataType::String)?.str()?.clone()
+    };
 
-    from.into_iter()
-        .zip(to.into_iter())
-        .for_each(|(from_node, to_node)| {
-            if let (Some(f), Some(t)) = (from_node, to_node) {
-                let f_id = *node_to_id.entry(f).or_insert_with(|| {
-                    let id = id_counter;
-                    id_counter += 1;
-                    id
-                });
-                let t_id = *node_to_id.entry(t).or_insert_with(|| {
-                    let id = id_counter;
-                    id_counter += 1;
-                    id
-                });
-                edges.push((f_id, t_id));
-            }
-        });
+    let len = from.len();
 
-    let num_nodes = id_counter;
+    if len <= u16::MAX as usize {
+        process_graph::<u16>(&from, &to)
+    } else if len <= u32::MAX as usize {
+        process_graph::<u32>(&from, &to)
+    } else {
+        process_graph::<u64>(&from, &to)
+    }
+}
+
+fn process_graph<T>(from: &StringChunked, to: &StringChunked) -> PolarsResult<Series>
+where
+    T: TryFrom<usize> + Copy + PartialEq + AsUsize + Into<u64>,
+    <T as TryFrom<usize>>::Error: std::fmt::Debug,
+{
+    let mut node_to_id: FxHashMap<&str, T> =
+        FxHashMap::with_capacity_and_hasher(from.len(), FxBuildHasher::default());
+    let mut id_counter: T = usize_to_t(0);
+    let mut edges = SmallVec::<[(T, T); 1024]>::with_capacity(from.len());
+
+    from.iter().zip(to.iter()).try_for_each(|(from_node, to_node)| -> PolarsResult<()> {
+        if let (Some(f), Some(t)) = (from_node, to_node) {
+            let f_id = *node_to_id.entry(f).or_insert_with(|| {
+                let id = id_counter;
+                id_counter = usize_to_t(id_counter.as_usize() + 1);
+                id
+            });
+            let t_id = *node_to_id.entry(t).or_insert_with(|| {
+                let id = id_counter;
+                id_counter = usize_to_t(id_counter.as_usize() + 1);
+                id
+            });
+            edges.push((f_id, t_id));
+        }
+        Ok(())
+    })?;
+
+    let num_nodes = id_counter.as_usize();
     let mut uf = UnionFind::new(num_nodes);
 
-    // Step 2: Perform union operations on edges
     edges.iter().for_each(|&(f_id, t_id)| {
         uf.union(f_id, t_id);
     });
 
-    // Step 3: Map each node to its connected component group
-    let mut root_to_group = vec![0; num_nodes]; // Using a Vec instead of FxHashMap for faster lookup
-    let mut group_counter: u32 = 1;
+    let mut group_ids = vec![usize_to_t(0); num_nodes];
+    let mut group_counter: T = usize_to_t(1); // Explicitly specify type T
 
-    let mut group_ids = Vec::with_capacity(num_nodes);
-    for id in 0..num_nodes {
+    for id in (0..num_nodes).map(|i| usize_to_t(i)) {
         let root = uf.find(id);
-        if root_to_group[root] == 0 {
-            root_to_group[root] = group_counter;
-            group_counter += 1;
+        if group_ids[root.as_usize()] == usize_to_t(0) {
+            group_ids[root.as_usize()] = group_counter;
+            group_counter = usize_to_t(group_counter.as_usize() + 1);
         }
-        group_ids.push(root_to_group[root]);
+        group_ids[id.as_usize()] = group_ids[root.as_usize()];
     }
 
-    // Step 4: Create the group column without using Option<>
-    let groups: Vec<u32> = from
-        .into_iter()
+    let groups: Vec<u64> = from
+        .iter()
         .map(|from_node| {
-            let node = from_node.unwrap(); // Assuming we know these are all `Some`, as we filtered `None` earlier
-            let node_id = *node_to_id.get(node).unwrap();
-            group_ids[node_id]
+            from_node
+                .and_then(|node| node_to_id.get(node))
+                .map(|&id| group_ids[id.as_usize()].into())
+                .unwrap_or(0)
         })
         .collect();
 
-    let result = UInt32Chunked::from_slice("group".into(), &groups);
-
-    Ok(result.into_series())
+    Ok(UInt64Chunked::from_vec("group".into(), groups).into_series())
 }

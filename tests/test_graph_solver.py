@@ -14,10 +14,9 @@ def test_graph_solver():
         }
     )
     result_df = df.select(graph_solver(pl.col("from"), pl.col("to")).alias('group'))
-    print(result_df)
     expected_df = pl.DataFrame(
         {
-            "group": [1, 1, 1, 2, 2, 2, 3]
+            "group": [1, 1, 1, 2, 2, 2, 2, 2, 3]
         }
     )
 
@@ -47,27 +46,27 @@ def test_super_merger():
     assert result_df.equals(expected_df), "The supermerger did not assign the expected group IDs."
 
 
-# def test_supermerger_with_empty_df():
-#     """
-#     Test that the supermerger function works correctly with an empty DataFrame.
-#     """
-#     df = pl.DataFrame(
-#         {
-#             "from": [],
-#             "to": []
-#         }
-#     )
-#
-#     result_df = super_merger(df, "from", "to")
-#     expected_df = pl.DataFrame(
-#         {
-#             "from": [],
-#             "to": [],
-#             "group": []
-#         }
-#     )
-#
-#     assert result_df.equals(expected_df), "The supermerger did not handle an empty DataFrame as expected."
+def test_supermerger_with_empty_df():
+    """
+    Test that the supermerger function works correctly with an empty DataFrame.
+    """
+    df = pl.DataFrame(
+        {
+            "from": [],
+            "to": []
+        }
+    )
+
+    result_df = super_merger(df, "from", "to")
+    expected_df = pl.DataFrame(
+        {
+            "from": [],
+            "to": [],
+            "group": []
+        }
+    )
+
+    assert result_df.equals(expected_df), "The supermerger did not handle an empty DataFrame as expected."
 
 
 def test_supermerger_with_single_component():

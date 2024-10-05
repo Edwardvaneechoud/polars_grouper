@@ -163,4 +163,4 @@ def create_sample_data_complex(num_groups: int = 1_000, cross_group_edges: int =
 
 for i in range(1, 7):
     print(10**i)
-    create_sample_data_complex(10**i)
+    create_sample_data_complex(30**i)
