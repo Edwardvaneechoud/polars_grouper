@@ -8,3 +8,4 @@ venv
 *.pyd
 myenv
 *.parquet
+performance_tests

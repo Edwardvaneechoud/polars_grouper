@@ -1,45 +1,43 @@
 from performance_tests.super_merger.simple import super_merger_simple
-from performance_tests.super_merger.networkx import super_merger_networkx
-from performance_tests.super_merger.bfs import super_merger_bfs
 from performance_tests.super_merger.rust import super_merger_rust
 import polars as pl
-import timeit
-
-df = pl.read_parquet('performance_tests/data/data_100000.parquet')
+import time
 
 
-# Define a wrapper function for each implementation to use in timeit
-def test_simple():
-    super_merger_simple(df, 'from', 'to')
+# Define a helper function to measure execution time
+def measure_time(func, df, name, num_runs=10):
+    total_time = 0
+    for _ in range(num_runs):
+        start_time = time.time()
+        func(df, 'from', 'to').count()
+        end_time = time.time()
+        total_time += (end_time - start_time)
+
+    avg_time = total_time / num_runs
+    print(f"Average time for {name}: {avg_time:.4f} seconds per run")
+    return avg_time
 
 
-def test_networkx():
-    super_merger_networkx(df, 'from', 'to')
+# Loop through different sizes of data
+for size in [100, 1000, 10000, 100000, 1000000]:
+    print(f"Running tests for dataset size: {size}")
+
+    # Load the dataset
+    df = pl.read_parquet(f'performance_tests/data/data_{size}.parquet')
+    # ndf = df.rename({'from': 'to', 'to': 'from'})
+    #df = pl.concat([df, ndf], how='diagonal_relaxed')
+    if size == 1000000:
+        n_runs = 2
+    elif size == 100000:
+        n_runs = 5
+    else:
+        n_runs = 10
+    # Measure time for each implementation
+    simple_time = measure_time(super_merger_simple, df, 'super_merger_simple', n_runs)
+    rust_time = measure_time(super_merger_rust, df, 'super_merger_rust', n_runs)
+
+    # Print the performance ratio
+    print(f"Performance ratio (simple/rust) for size {size}: {simple_time / rust_time:.4f}")
+    print("-" * 50)
 
 
-def test_bfs():
-    super_merger_bfs(df, 'from', 'to')
-
-
-def test_rust():
-    super_merger_rust(df, 'from', 'to').select('group')
-
-
-# Run the performance tests
-num_runs = 10  # Set the number of times to run each function
-
-# Time the simple implementation
-simple_time = timeit.timeit("test_simple()", globals=globals(), number=num_runs)
-print(f"Average time for super_merger_simple: {simple_time / num_runs:.4f} seconds per run")
-
-# Time the NetworkX implementation
-networkx_time = timeit.timeit("test_networkx()", globals=globals(), number=num_runs)
-print(f"Average time for super_merger_networkx: {networkx_time / num_runs:.4f} seconds per run")
-
-# Time the BFS implementation
-bfs_time = timeit.timeit("test_bfs()", globals=globals(), number=num_runs)
-print(f"Average time for super_merger_bfs: {bfs_time / num_runs:.4f} seconds per run")
-#
-# # Time the Rust implementation
-rust_time = timeit.timeit("test_rust()", globals=globals(), number=num_runs)
-print(f"Average time for super_merger_rust: {rust_time / num_runs:.4f} seconds per run")
