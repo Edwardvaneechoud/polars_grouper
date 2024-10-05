@@ -54,5 +54,10 @@ df = pl.LazyFrame({
 
 result_df = super_merger(df, "from", "to")
 print(result_df.collect())
+
 ```
+# Performance
+Comparing the rust implementation with the native python options, the rust version outperforms the Python implementations significantly:
+
+![image](https://github.com/user-attachments/assets/fcb7df04-ccd3-48ad-b488-912d4abad0df)
 
