@@ -105,7 +105,7 @@ where
     <T as TryFrom<usize>>::Error: std::fmt::Debug,
 {
     let mut node_to_id: FxHashMap<&str, T> =
-        FxHashMap::with_capacity_and_hasher(from.len(), FxBuildHasher::default());
+        FxHashMap::with_capacity_and_hasher(from.len(), FxBuildHasher);
     let mut id_counter: T = usize_to_t(0);
     let mut edges = SmallVec::<[(T, T); 1024]>::with_capacity(from.len());
 
