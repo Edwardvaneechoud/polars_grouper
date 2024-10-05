@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "polars-grouper" # Updated to match the new name
-version = "0.1.0"
+version = "0.1.1"
 description = "Graph solving and grouping extension for Polars DataFrames"
 authors = [
     { name = "Edward Vaneechoud", email = "evaneechoud@gmail.com" }
