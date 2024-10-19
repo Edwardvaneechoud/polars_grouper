@@ -22,7 +22,7 @@ maturin develop
 
 ## Usage
 graph_solver
-Register the graph_solver function:
+Use the graph_solver function:
 
 ```python
 import polars as pl
