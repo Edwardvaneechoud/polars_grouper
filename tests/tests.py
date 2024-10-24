@@ -1,8 +1,13 @@
 import polars as pl
 import pytest
-from polars_grouper import (graph_solver, super_merger, page_rank, calculate_shortest_path,
-                            betweenness_centrality,
-                            graph_association_rules)
+from polars_grouper import (
+    graph_solver,
+    super_merger,
+    page_rank,
+    calculate_shortest_path,
+    betweenness_centrality,
+    graph_association_rules,
+)
 import math
 
 
@@ -14,17 +19,22 @@ def test_page_rank() -> None:
     match expected values computed manually.
     """
     df = pl.DataFrame(
-        {
-            "from": ["A", "B", "C", "E", "F", "G", "I", "I", "AA"],
-            "to": ["B", "C", "D", "F", "G", "J", "K", "J", "Z"]
-        }
+        {"from": ["A", "B", "C", "E", "F", "G", "I", "I", "AA"], "to": ["B", "C", "D", "F", "G", "J", "K", "J", "Z"]}
     )
     result_df = df.select(page_rank(pl.col("from"), pl.col("to")).alias("rank"))
     expected_df = pl.DataFrame(
         {
-            "rank": [0.012500000000000002, 0.023125000000000007, 0.032156250000000004,
-                     0.012500000000000002, 0.023125000000000007, 0.032156250000000004,
-                     0.012500000000000002, 0.012500000000000002, 0.012500000000000002]
+            "rank": [
+                0.012500000000000002,
+                0.023125000000000007,
+                0.032156250000000004,
+                0.012500000000000002,
+                0.023125000000000007,
+                0.032156250000000004,
+                0.012500000000000002,
+                0.012500000000000002,
+                0.012500000000000002,
+            ]
         }
     )
     assert result_df.equals(expected_df), "The rank values were not calculated as expected."
@@ -33,36 +43,24 @@ def test_page_rank() -> None:
 def test_graph_solver() -> None:
     """Test that the graph_solver correctly assigns group IDs to connected components."""
     df = pl.DataFrame(
-        {
-            "from": ["A", "B", "C", "E", "F", "G", "I", "I", "AA"],
-            "to": ["B", "C", "D", "F", "G", "J", "K", "J", "Z"]
-        }
+        {"from": ["A", "B", "C", "E", "F", "G", "I", "I", "AA"], "to": ["B", "C", "D", "F", "G", "J", "K", "J", "Z"]}
     )
     result_df = df.select(graph_solver(pl.col("from"), pl.col("to")).alias("group"))
-    expected_df = pl.DataFrame(
-        {
-            "group": [1, 1, 1, 2, 2, 2, 2, 2, 3]
-        }
-    )
+    expected_df = pl.DataFrame({"group": [1, 1, 1, 2, 2, 2, 2, 2, 3]})
 
     assert result_df.equals(expected_df), "The graph_solver did not assign the expected group IDs."
 
 
 def test_super_merger() -> None:
     """Test that the supermerger function correctly adds group IDs to a DataFrame."""
-    df = pl.DataFrame(
-        {
-            "from": ["A", "B", "C", "E", "F", "G", "I"],
-            "to": ["B", "C", "D", "F", "G", "J", "K"]
-        }
-    )
+    df = pl.DataFrame({"from": ["A", "B", "C", "E", "F", "G", "I"], "to": ["B", "C", "D", "F", "G", "J", "K"]})
 
     result_df = super_merger(df, "from", "to")
     expected_df = pl.DataFrame(
         {
             "from": ["A", "B", "C", "E", "F", "G", "I"],
             "to": ["B", "C", "D", "F", "G", "J", "K"],
-            "group": [1, 1, 1, 2, 2, 2, 3]
+            "group": [1, 1, 1, 2, 2, 2, 3],
         }
     )
 
@@ -71,42 +69,20 @@ def test_super_merger() -> None:
 
 def test_supermerger_with_empty_df() -> None:
     """Test that the supermerger function works correctly with an empty DataFrame."""
-    df = pl.DataFrame(
-        {
-            "from": [],
-            "to": []
-        }
-    )
+    df = pl.DataFrame({"from": [], "to": []})
 
     result_df = super_merger(df, "from", "to")
-    expected_df = pl.DataFrame(
-        {
-            "from": [],
-            "to": [],
-            "group": []
-        }
-    )
+    expected_df = pl.DataFrame({"from": [], "to": [], "group": []})
 
     assert result_df.equals(expected_df), "The supermerger did not handle an empty DataFrame as expected."
 
 
 def test_supermerger_with_single_component() -> None:
     """Test that the supermerger function works correctly with a single connected component."""
-    df = pl.DataFrame(
-        {
-            "from": ["A", "B", "C"],
-            "to": ["B", "C", "A"]
-        }
-    )
+    df = pl.DataFrame({"from": ["A", "B", "C"], "to": ["B", "C", "A"]})
 
     result_df = super_merger(df, "from", "to")
-    expected_df = pl.DataFrame(
-        {
-            "from": ["A", "B", "C"],
-            "to": ["B", "C", "A"],
-            "group": [1, 1, 1]
-        }
-    )
+    expected_df = pl.DataFrame({"from": ["A", "B", "C"], "to": ["B", "C", "A"], "group": [1, 1, 1]})
 
     assert result_df.equals(expected_df), "The supermerger did not correctly identify a single connected component."
 
@@ -117,18 +93,10 @@ def test_basic_betweenness_centrality() -> None:
 
     B should have the highest centrality as it"s on all paths.
     """
-    df = pl.DataFrame({
-        "from": ["A", "B"],
-        "to": ["B", "C"]
-    })
+    df = pl.DataFrame({"from": ["A", "B"], "to": ["B", "C"]})
 
     result = df.select(
-        betweenness_centrality(
-            pl.col("from"),
-            pl.col("to"),
-            normalized=True,
-            directed=False
-        ).alias("centrality")
+        betweenness_centrality(pl.col("from"), pl.col("to"), normalized=True, directed=False).alias("centrality")
     ).unnest("centrality")
 
     # Get centrality for node B
@@ -152,18 +120,10 @@ def test_star_graph_betweenness() -> None:
           E
     Central node A should have highest centrality.
     """
-    df = pl.DataFrame({
-        "from": ["A", "A", "A", "A"],
-        "to": ["B", "C", "D", "E"]
-    })
+    df = pl.DataFrame({"from": ["A", "A", "A", "A"], "to": ["B", "C", "D", "E"]})
 
     result = df.select(
-        betweenness_centrality(
-            pl.col("from"),
-            pl.col("to"),
-            normalized=True,
-            directed=False
-        ).alias("centrality")
+        betweenness_centrality(pl.col("from"), pl.col("to"), normalized=True, directed=False).alias("centrality")
     ).unnest("centrality")
 
     # Get centrality for center node A
@@ -181,27 +141,14 @@ def test_directed_vs_undirected() -> None:
     centrality when using the same edge set. Tests a cyclic graph to ensure
     directionality affects the centrality scores.
     """
-    df = pl.DataFrame({
-        "from": ["A", "B", "C"],
-        "to": ["B", "C", "A"]
-    })
+    df = pl.DataFrame({"from": ["A", "B", "C"], "to": ["B", "C", "A"]})
 
     directed_result = df.select(
-        betweenness_centrality(
-            pl.col("from"),
-            pl.col("to"),
-            normalized=True,
-            directed=True
-        ).alias("centrality")
+        betweenness_centrality(pl.col("from"), pl.col("to"), normalized=True, directed=True).alias("centrality")
     ).unnest("centrality")
 
     undirected_result = df.select(
-        betweenness_centrality(
-            pl.col("from"),
-            pl.col("to"),
-            normalized=True,
-            directed=False
-        ).alias("centrality")
+        betweenness_centrality(pl.col("from"), pl.col("to"), normalized=True, directed=False).alias("centrality")
     ).unnest("centrality")
 
     # Results should be different for directed vs undirected
@@ -215,18 +162,10 @@ def test_disconnected_components() -> None:
     Verifies that centrality is calculated correctly within each component
     and that nodes in different components don"t affect each other.
     """
-    df = pl.DataFrame({
-        "from": ["A", "B", "D"],
-        "to": ["B", "C", "E"]
-    })
+    df = pl.DataFrame({"from": ["A", "B", "D"], "to": ["B", "C", "E"]})
 
     result = df.select(
-        betweenness_centrality(
-            pl.col("from"),
-            pl.col("to"),
-            normalized=True,
-            directed=False
-        ).alias("centrality")
+        betweenness_centrality(pl.col("from"), pl.col("to"), normalized=True, directed=False).alias("centrality")
     ).unnest("centrality")
 
     # Node B should have highest centrality in its component
@@ -243,17 +182,9 @@ def test_betweenness_empty_graph() -> None:
     Test betweenness centrality with an empty graph.
     Verifies that the function handles edge cases gracefully.
     """
-    df = pl.DataFrame({
-        "from": [],
-        "to": []
-    })
+    df = pl.DataFrame({"from": [], "to": []})
 
-    result = df.select(
-        betweenness_centrality(
-            pl.col("from"),
-            pl.col("to")
-        ).alias("centrality")
-    ).unnest("centrality")
+    result = df.select(betweenness_centrality(pl.col("from"), pl.col("to")).alias("centrality")).unnest("centrality")
 
     assert len(result) == 0
 
@@ -265,11 +196,13 @@ def test_basic_association_rules() -> None:
     for a simple transaction dataset.
     """
     # Create sample transaction data
-    df = pl.DataFrame({
-        "transaction_id": [1, 1, 1, 2, 2, 3],
-        "item_id": ["A", "B", "C", "B", "D", "A"],
-        "frequency": [1.0, 2.0, 1.0, 1.0, 1.0, 1.0]
-    })
+    df = pl.DataFrame(
+        {
+            "transaction_id": [1, 1, 1, 2, 2, 3],
+            "item_id": ["A", "B", "C", "B", "D", "A"],
+            "frequency": [1.0, 2.0, 1.0, 1.0, 1.0, 1.0],
+        }
+    )
 
     # Apply association rules
     result = df.select(
@@ -279,16 +212,16 @@ def test_basic_association_rules() -> None:
             pl.col("frequency"),
             min_support=0.1,
             min_confidence=0.1,
-            weighted=True
+            weighted=True,
         ).alias("rules")
     ).unnest("rules")
 
     # Check basic properties
     assert len(result) > 0
-    assert all(col in result.columns for col in [
-        "item", "support", "lift_score", "pattern",
-        "consequents", "confidence_scores"
-    ])
+    assert all(
+        col in result.columns
+        for col in ["item", "support", "lift_score", "pattern", "consequents", "confidence_scores"]
+    )
 
     # Check data types
     assert result.schema["item"] == pl.String
@@ -304,18 +237,10 @@ def test_empty_transactions() -> None:
     Test the graph_association_rules function with an empty transaction dataset.
     Verifies that the function handles empty input gracefully.
     """
-    df = pl.DataFrame({
-        "transaction_id": [],
-        "item_id": [],
-        "frequency": []
-    })
+    df = pl.DataFrame({"transaction_id": [], "item_id": [], "frequency": []})
 
     result = df.select(
-        graph_association_rules(
-            pl.col("transaction_id"),
-            pl.col("item_id"),
-            pl.col("frequency")
-        ).alias("rules")
+        graph_association_rules(pl.col("transaction_id"), pl.col("item_id"), pl.col("frequency")).alias("rules")
     ).unnest("rules")
 
     assert len(result) == 0
@@ -326,18 +251,10 @@ def test_single_item_transactions() -> None:
     Test the graph_association_rules function with transactions containing only one item.
     Verifies that the function correctly handles cases where no associations are possible.
     """
-    df = pl.DataFrame({
-        "transaction_id": [1, 2, 3],
-        "item_id": ["A", "A", "A"],
-        "frequency": [1.0, 1.0, 1.0]
-    })
+    df = pl.DataFrame({"transaction_id": [1, 2, 3], "item_id": ["A", "A", "A"], "frequency": [1.0, 1.0, 1.0]})
 
     result = df.select(
-        graph_association_rules(
-            pl.col("transaction_id"),
-            pl.col("item_id"),
-            pl.col("frequency")
-        ).alias("rules")
+        graph_association_rules(pl.col("transaction_id"), pl.col("item_id"), pl.col("frequency")).alias("rules")
     ).unnest("rules")
 
     # Should have one item with no associations
@@ -352,11 +269,13 @@ def test_min_support_threshold() -> None:
     Test the graph_association_rules function with different minimum support thresholds.
     Verifies that items are correctly filtered based on their support values.
     """
-    df = pl.DataFrame({
-        "transaction_id": [1, 1, 2, 3, 4],
-        "item_id": ["A", "B", "B", "C", "C"],
-        "frequency": [1.0, 1.0, 1.0, 1.0, 1.0]
-    })
+    df = pl.DataFrame(
+        {
+            "transaction_id": [1, 1, 2, 3, 4],
+            "item_id": ["A", "B", "B", "C", "C"],
+            "frequency": [1.0, 1.0, 1.0, 1.0, 1.0],
+        }
+    )
 
     # Set high min_support to filter out rare items
     result = df.select(
@@ -364,7 +283,7 @@ def test_min_support_threshold() -> None:
             pl.col("transaction_id"),
             pl.col("item_id"),
             pl.col("frequency"),
-            min_support=0.5  # 50% of transactions
+            min_support=0.5,  # 50% of transactions
         ).alias("rules")
     ).unnest("rules")
     # Only items appearing in ≥50% of transactions should remain
@@ -380,29 +299,21 @@ def test_weighted_vs_unweighted() -> None:
     Verifies that using frequency weights produces different results than treating
     all transactions equally.
     """
-    df = pl.DataFrame({
-        "transaction_id": [1, 1, 2, 2],
-        "item_id": ["A", "B", "A", "B"],
-        "frequency": [1.0, 2.0, 2.0, 1.0]
-    })
+    df = pl.DataFrame(
+        {"transaction_id": [1, 1, 2, 2], "item_id": ["A", "B", "A", "B"], "frequency": [1.0, 2.0, 2.0, 1.0]}
+    )
 
     # Get results with and without weighting
     weighted = df.select(
-        graph_association_rules(
-            pl.col("transaction_id"),
-            pl.col("item_id"),
-            pl.col("frequency"),
-            weighted=True
-        ).alias("rules")
+        graph_association_rules(pl.col("transaction_id"), pl.col("item_id"), pl.col("frequency"), weighted=True).alias(
+            "rules"
+        )
     ).unnest("rules")
 
     unweighted = df.select(
-        graph_association_rules(
-            pl.col("transaction_id"),
-            pl.col("item_id"),
-            pl.col("frequency"),
-            weighted=False
-        ).alias("rules")
+        graph_association_rules(pl.col("transaction_id"), pl.col("item_id"), pl.col("frequency"), weighted=False).alias(
+            "rules"
+        )
     ).unnest("rules")
 
     # Support values should differ between weighted and unweighted
@@ -417,18 +328,13 @@ def test_max_itemset_size() -> None:
     """
     # Create data with large transactions
     transaction = list(range(1, 52))  # 51 items
-    df = pl.DataFrame({
-        "transaction_id": [1] * 51,
-        "item_id": [f"item_{i}" for i in transaction],
-        "frequency": [1.0] * 51
-    })
+    df = pl.DataFrame(
+        {"transaction_id": [1] * 51, "item_id": [f"item_{i}" for i in transaction], "frequency": [1.0] * 51}
+    )
 
     result = df.select(
         graph_association_rules(
-            pl.col("transaction_id"),
-            pl.col("item_id"),
-            pl.col("frequency"),
-            max_itemset_size=50
+            pl.col("transaction_id"), pl.col("item_id"), pl.col("frequency"), max_itemset_size=50
         ).alias("rules")
     ).unnest("rules")
 
@@ -442,19 +348,17 @@ def test_null_handling() -> None:
     Verifies that the function properly handles missing values in transaction IDs,
     item IDs, and frequency columns without errors.
     """
-    df = pl.DataFrame({
-        "transaction_id": [1, 1, None, 2, 2],
-        "item_id": ["A", "B", "C", None, "D"],
-        "frequency": [1.0, None, 1.0, 1.0, 1.0]
-    })
+    df = pl.DataFrame(
+        {
+            "transaction_id": [1, 1, None, 2, 2],
+            "item_id": ["A", "B", "C", None, "D"],
+            "frequency": [1.0, None, 1.0, 1.0, 1.0],
+        }
+    )
 
     # Should handle nulls without error
     result = df.select(
-        graph_association_rules(
-            pl.col("transaction_id"),
-            pl.col("item_id"),
-            pl.col("frequency")
-        ).alias("rules")
+        graph_association_rules(pl.col("transaction_id"), pl.col("item_id"), pl.col("frequency")).alias("rules")
     ).unnest("rules")
 
     assert len(result) > 0
@@ -466,19 +370,10 @@ def test_calculate_shortest_path() -> None:
     Verifies that the function correctly computes shortest paths between all pairs
     of nodes using Dijkstra"s algorithm, taking edge weights into account.
     """
-    df = pl.DataFrame({
-        "from": ["A", "A", "B", "C"],
-        "to": ["B", "C", "C", "D"],
-        "weight": [1.0, 2.0, 1.0, 1.5]
-    })
+    df = pl.DataFrame({"from": ["A", "A", "B", "C"], "to": ["B", "C", "C", "D"], "weight": [1.0, 2.0, 1.0, 1.5]})
 
     result = df.select(
-        calculate_shortest_path(
-            pl.col("from"),
-            pl.col("to"),
-            pl.col("weight"),
-            directed=False
-        ).alias("paths")
+        calculate_shortest_path(pl.col("from"), pl.col("to"), pl.col("weight"), directed=False).alias("paths")
     ).unnest("paths")
 
     # Check if all paths are present
@@ -488,12 +383,11 @@ def test_calculate_shortest_path() -> None:
         ("A", "D"): 3.5,  # Path through C
         ("B", "C"): 1.0,
         ("B'", "D"): 2.5,  # Path through C
-        ("C", "D"): 1.5
+        ("C", "D"): 1.5,
     }
 
     # Convert result to dictionary for easier comparison
-    actual_paths = {(row["from"], row["to"]): row["distance"]
-                    for row in result.to_dicts()}
+    actual_paths = {(row["from"], row["to"]): row["distance"] for row in result.to_dicts()}
     print(actual_paths)
     assert len(result) == len(expected_paths)
     for (start, end), distance in expected_paths.items():
@@ -506,24 +400,14 @@ def test_directed_path() -> None:
     Verifies that path distances are asymmetric when the graph is directed,
     and that the function correctly handles different path weights in each direction.
     """
-    df = pl.DataFrame({
-        "from": ["A", "B", "B", "C"],
-        "to": ["B", "C", "A", "A"],
-        "weight": [1.0, 2.0, 3.0, 4.0]
-    })
+    df = pl.DataFrame({"from": ["A", "B", "B", "C"], "to": ["B", "C", "A", "A"], "weight": [1.0, 2.0, 3.0, 4.0]})
 
     result = df.select(
-        calculate_shortest_path(
-            pl.col("from"),
-            pl.col("to"),
-            pl.col("weight"),
-            directed=True
-        ).alias("paths")
+        calculate_shortest_path(pl.col("from"), pl.col("to"), pl.col("weight"), directed=True).alias("paths")
     ).unnest("paths")
 
     # Verify asymmetric paths
-    paths_dict = {(row["from"], row["to"]): row["distance"]
-                  for row in result.to_dicts()}
+    paths_dict = {(row["from"], row["to"]): row["distance"] for row in result.to_dicts()}
 
     # A → B should be 1.0
     assert abs(paths_dict[("A", "B")] - 1.0) < 1e-6
@@ -538,23 +422,13 @@ def test_cycle_path() -> None:
     exist between nodes, including cycles. Tests that it correctly chooses the
     path with minimum total weight.
     """
-    df = pl.DataFrame({
-        "from": ["A", "B", "C", "A"],
-        "to": ["B", "C", "A", "C"],
-        "weight": [1.0, 1.0, 3.0, 2.0]
-    })
+    df = pl.DataFrame({"from": ["A", "B", "C", "A"], "to": ["B", "C", "A", "C"], "weight": [1.0, 1.0, 3.0, 2.0]})
 
     result = df.select(
-        calculate_shortest_path(
-            pl.col("from"),
-            pl.col("to"),
-            pl.col("weight"),
-            directed=True
-        ).alias("paths")
+        calculate_shortest_path(pl.col("from"), pl.col("to"), pl.col("weight"), directed=True).alias("paths")
     ).unnest("paths")
 
-    paths_dict = {(row["from"], row["to"]): row["distance"]
-                  for row in result.to_dicts()}
+    paths_dict = {(row["from"], row["to"]): row["distance"] for row in result.to_dicts()}
 
     # A → C should choose shorter path (A → B → C = 2.0) over direct path (3.0)
     assert abs(paths_dict[("A", "C")] - 2.0) < 1e-6
@@ -566,19 +440,11 @@ def test_calculate_path_empty_graph() -> None:
     Verifies that the function handles the edge case of an empty input
     DataFrame gracefully and returns an empty result.
     """
-    df = pl.DataFrame({
-        "from": [],
-        "to": [],
-        "weight": []
-    })
+    df = pl.DataFrame({"from": [], "to": [], "weight": []})
 
-    result = df.select(
-        calculate_shortest_path(
-            pl.col("from"),
-            pl.col("to"),
-            pl.col("weight")
-        ).alias("paths")
-    ).unnest("paths")
+    result = df.select(calculate_shortest_path(pl.col("from"), pl.col("to"), pl.col("weight")).alias("paths")).unnest(
+        "paths"
+    )
 
     assert len(result) == 0
 

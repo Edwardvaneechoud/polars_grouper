@@ -76,10 +76,7 @@ def graph_solver(expr_from: IntoExpr, expr_to: IntoExpr) -> pl.Expr:
 
 
 def calculate_shortest_path(
-    expr_from: IntoExpr,
-    expr_to: IntoExpr,
-    weights: IntoExpr,
-    directed: bool = False
+    expr_from: IntoExpr, expr_to: IntoExpr, weights: IntoExpr, directed: bool = False
 ) -> pl.Expr:
     """
     Calculate the shortest paths between all pairs of nodes in a weighted graph.
@@ -154,7 +151,7 @@ def calculate_shortest_path(
         function_name="graph_find_shortest_path",
         is_elementwise=False,
         changes_length=True,
-        kwargs={"directed": directed}
+        kwargs={"directed": directed},
     )
 
 
@@ -163,7 +160,7 @@ def page_rank(
     expr_to: IntoExpr,
     damping_factor: float = 0.85,
     max_iterations: int = 100,
-    convergence_threshold: float = 1e-6
+    convergence_threshold: float = 1e-6,
 ) -> pl.Expr:
     """
     Calculate PageRank scores for nodes in a graph.
@@ -238,9 +235,11 @@ def page_rank(
         plugin_path=LIB,
         function_name="page_rank",
         is_elementwise=False,
-        kwargs={"damping_factor": damping_factor,
-                "max_iterations": max_iterations,
-                "convergence_threshold": convergence_threshold}
+        kwargs={
+            "damping_factor": damping_factor,
+            "max_iterations": max_iterations,
+            "convergence_threshold": convergence_threshold,
+        },
     )
 
 
@@ -303,11 +302,7 @@ def super_merger(df: DF, from_col_name: str, to_col_name: str) -> DF:
 
 
 def super_merger_weighted(
-    df: DF,
-    from_col_name: str,
-    to_col_name: str,
-    weighted_col_name: str,
-    weight_threshold: float = 0.1
+    df: DF, from_col_name: str, to_col_name: str, weighted_col_name: str, weight_threshold: float = 0.1
 ) -> DF:
     """
     Group nodes into connected components considering edge weights.
@@ -372,15 +367,13 @@ def super_merger_weighted(
     - Weight threshold should be chosen based on the scale of your weight values
 
     """
-    return (df.filter(pl.col(weighted_col_name) >= weight_threshold)
-            .with_columns(graph_solver(pl.col(from_col_name), pl.col(to_col_name)).alias("group")))
+    return df.filter(pl.col(weighted_col_name) >= weight_threshold).with_columns(
+        graph_solver(pl.col(from_col_name), pl.col(to_col_name)).alias("group")
+    )
 
 
 def betweenness_centrality(
-    expr_from: IntoExpr,
-    expr_to: IntoExpr,
-    normalized: bool = True,
-    directed: bool = False
+    expr_from: IntoExpr, expr_to: IntoExpr, normalized: bool = True, directed: bool = False
 ) -> pl.Expr:
     """
     Calculate betweenness centrality for all nodes in a graph.
@@ -455,7 +448,7 @@ def betweenness_centrality(
         function_name="graph_betweenness_centrality",
         is_elementwise=False,
         changes_length=True,
-        kwargs={"normalized": normalized, "directed": directed}
+        kwargs={"normalized": normalized, "directed": directed},
     )
 
 
@@ -466,7 +459,7 @@ def graph_association_rules(
     min_support: float = 0.01,
     min_confidence: float = 0.1,
     max_itemset_size: int = 50,
-    weighted: bool = False
+    weighted: bool = False,
 ) -> pl.Expr:
     """
     Perform association rule mining to identify item relationships, frequent patterns,
@@ -552,6 +545,6 @@ def graph_association_rules(
             "min_support": min_support,
             "min_confidence": min_confidence,
             "max_itemset_size": max_itemset_size,
-            "weighted": weighted
-        }
+            "weighted": weighted,
+        },
     )
