@@ -10,3 +10,4 @@ myenv
 *.parquet
 performance_tests
 Cargo.lock
+.idea

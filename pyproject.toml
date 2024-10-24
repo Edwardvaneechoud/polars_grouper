@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "polars-grouper"
-version = "0.2.0"
+version = "0.3.0"
 description = "High-performance graph analysis and pattern mining extension for Polars"
 authors = [
     { name = "Edward Vaneechoud", email = "evaneechoud@gmail.com" }
