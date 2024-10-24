@@ -6,7 +6,7 @@ from polars_grouper import (graph_solver, super_merger, page_rank, calculate_sho
 import math
 
 
-def test_page_rank():
+def test_page_rank() -> None:
     """
     Test the page_rank function calculates correct PageRank values for a directed graph.
 
@@ -30,7 +30,7 @@ def test_page_rank():
     assert result_df.equals(expected_df), "The rank values were not calculated as expected."
 
 
-def test_graph_solver():
+def test_graph_solver() -> None:
     """Test that the graph_solver correctly assigns group IDs to connected components."""
     df = pl.DataFrame(
         {
@@ -48,7 +48,7 @@ def test_graph_solver():
     assert result_df.equals(expected_df), "The graph_solver did not assign the expected group IDs."
 
 
-def test_super_merger():
+def test_super_merger() -> None:
     """Test that the supermerger function correctly adds group IDs to a DataFrame."""
     df = pl.DataFrame(
         {
@@ -69,7 +69,7 @@ def test_super_merger():
     assert result_df.equals(expected_df), "The supermerger did not assign the expected group IDs."
 
 
-def test_supermerger_with_empty_df():
+def test_supermerger_with_empty_df() -> None:
     """Test that the supermerger function works correctly with an empty DataFrame."""
     df = pl.DataFrame(
         {
@@ -90,7 +90,7 @@ def test_supermerger_with_empty_df():
     assert result_df.equals(expected_df), "The supermerger did not handle an empty DataFrame as expected."
 
 
-def test_supermerger_with_single_component():
+def test_supermerger_with_single_component() -> None:
     """Test that the supermerger function works correctly with a single connected component."""
     df = pl.DataFrame(
         {
@@ -111,7 +111,7 @@ def test_supermerger_with_single_component():
     assert result_df.equals(expected_df), "The supermerger did not correctly identify a single connected component."
 
 
-def test_basic_betweenness_centrality():
+def test_basic_betweenness_centrality() -> None:
     """
     Test betweenness centrality on a simple line graph: A -- B -- C.
 
@@ -141,7 +141,7 @@ def test_basic_betweenness_centrality():
     assert math.isclose(end_centrality, 0.0, rel_tol=1e-5)
 
 
-def test_star_graph_betweenness():
+def test_star_graph_betweenness() -> None:
     """
     Test betweenness centrality on a star graph.
 
@@ -175,7 +175,7 @@ def test_star_graph_betweenness():
     assert math.isclose(peripheral_centrality, 0.0, rel_tol=1e-5)
 
 
-def test_directed_vs_undirected():
+def test_directed_vs_undirected() -> None:
     """
     Test that directed and undirected graphs give different results for betweenness
     centrality when using the same edge set. Tests a cyclic graph to ensure
@@ -208,7 +208,7 @@ def test_directed_vs_undirected():
     assert not directed_result.equals(undirected_result)
 
 
-def test_disconnected_components():
+def test_disconnected_components() -> None:
     """
     Test betweenness centrality with disconnected components:
     A -- B -- C   D -- E
@@ -238,7 +238,7 @@ def test_disconnected_components():
     assert all(math.isclose(c, 0.0, rel_tol=1e-5) for c in end_nodes["centrality"])
 
 
-def test_betweenness_empty_graph():
+def test_betweenness_empty_graph() -> None:
     """
     Test betweenness centrality with an empty graph.
     Verifies that the function handles edge cases gracefully.
@@ -258,7 +258,7 @@ def test_betweenness_empty_graph():
     assert len(result) == 0
 
 
-def test_basic_association_rules():
+def test_basic_association_rules() -> None:
     """
     Test the graph_association_rules function with a basic set of transactions.
     Verifies that the function returns the expected structure and data types
@@ -299,7 +299,7 @@ def test_basic_association_rules():
     assert result.schema["confidence_scores"].inner == pl.Float64
 
 
-def test_empty_transactions():
+def test_empty_transactions() -> None:
     """
     Test the graph_association_rules function with an empty transaction dataset.
     Verifies that the function handles empty input gracefully.
@@ -321,7 +321,7 @@ def test_empty_transactions():
     assert len(result) == 0
 
 
-def test_single_item_transactions():
+def test_single_item_transactions() -> None:
     """
     Test the graph_association_rules function with transactions containing only one item.
     Verifies that the function correctly handles cases where no associations are possible.
@@ -347,7 +347,7 @@ def test_single_item_transactions():
     assert len(result["confidence_scores"][0]) == 0
 
 
-def test_min_support_threshold():
+def test_min_support_threshold() -> None:
     """
     Test the graph_association_rules function with different minimum support thresholds.
     Verifies that items are correctly filtered based on their support values.
@@ -374,7 +374,7 @@ def test_min_support_threshold():
     assert "A" not in items  # Appears in only 1/4 transactions
 
 
-def test_weighted_vs_unweighted():
+def test_weighted_vs_unweighted() -> None:
     """
     Test the graph_association_rules function comparing weighted and unweighted modes.
     Verifies that using frequency weights produces different results than treating
@@ -409,7 +409,7 @@ def test_weighted_vs_unweighted():
     assert not all(w == u for w, u in zip(weighted["support"], unweighted["support"]))
 
 
-def test_max_itemset_size():
+def test_max_itemset_size() -> None:
     """
     Test the graph_association_rules function with a large number of items.
     Verifies that the function handles large itemsets correctly and respects
@@ -436,7 +436,7 @@ def test_max_itemset_size():
     assert len(result) > 0
 
 
-def test_null_handling():
+def test_null_handling() -> None:
     """
     Test the graph_association_rules function"s handling of null values.
     Verifies that the function properly handles missing values in transaction IDs,
@@ -460,7 +460,7 @@ def test_null_handling():
     assert len(result) > 0
 
 
-def test_calculate_shortest_path():
+def test_calculate_shortest_path() -> None:
     """
     Test the calculate_shortest_path function on a simple weighted graph.
     Verifies that the function correctly computes shortest paths between all pairs
@@ -500,7 +500,7 @@ def test_calculate_shortest_path():
         assert abs(actual_paths[(start, end)] - distance) < 1e-6
 
 
-def test_directed_path():
+def test_directed_path() -> None:
     """
     Test the calculate_shortest_path function with directed edges.
     Verifies that path distances are asymmetric when the graph is directed,
@@ -531,7 +531,7 @@ def test_directed_path():
     assert abs(paths_dict[("B", "A")] - 3.0) < 1e-6
 
 
-def test_cycle_path():
+def test_cycle_path() -> None:
     """
     Test the calculate_shortest_path function with a graph containing cycles.
     Verifies that the function finds the shortest path even when multiple paths
@@ -560,7 +560,7 @@ def test_cycle_path():
     assert abs(paths_dict[("A", "C")] - 2.0) < 1e-6
 
 
-def test_calculate_path_empty_graph():
+def test_calculate_path_empty_graph() -> None:
     """
     Test the calculate_shortest_path function with an empty graph.
     Verifies that the function handles the edge case of an empty input
