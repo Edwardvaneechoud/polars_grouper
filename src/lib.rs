@@ -1,4 +1,10 @@
-mod expressions;
+mod association_rule_graph_mining;
+mod graph_betweenness_centrality;
+mod graph_solver;
+mod graph_utils;
+mod page_rank;
+mod shortest_path;
+
 use pyo3::types::{PyModule, PyModuleMethods};
 use pyo3::{pymodule, Bound, PyResult};
 use pyo3_polars::PolarsAllocator;
@@ -11,4 +17,3 @@ fn _internal(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[global_allocator]
 static ALLOC: PolarsAllocator = PolarsAllocator::new();
-

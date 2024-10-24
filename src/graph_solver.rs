@@ -1,38 +1,8 @@
 use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
-use rustc_hash::{FxHashMap, FxBuildHasher};
-use smallvec::SmallVec;
 use std::convert::TryFrom;
 
-trait AsUsize {
-    fn as_usize(&self) -> usize;
-}
-
-impl AsUsize for u16 {
-    fn as_usize(&self) -> usize {
-        *self as usize
-    }
-}
-
-impl AsUsize for u32 {
-    fn as_usize(&self) -> usize {
-        *self as usize
-    }
-}
-
-impl AsUsize for u64 {
-    fn as_usize(&self) -> usize {
-        *self as usize
-    }
-}
-
-fn usize_to_t<T>(value: usize) -> T
-where
-    T: TryFrom<usize>,
-    <T as TryFrom<usize>>::Error: std::fmt::Debug,
-{
-    T::try_from(value).expect("Invalid conversion from usize")
-}
+use crate::graph_utils::{process_edges, to_string_chunked, usize_to_t, AsUsize};
 
 struct UnionFind<T>
 where
@@ -48,9 +18,7 @@ where
 {
     fn new(size: usize) -> Self {
         UnionFind {
-            nodes: (0..size)
-                .map(|i| usize_to_t(i))
-                .collect(),
+            nodes: (0..size).map(|i| usize_to_t(i)).collect(),
         }
     }
 
@@ -76,17 +44,8 @@ where
 
 #[polars_expr(output_type = UInt64)]
 fn graph_solver(inputs: &[Series]) -> PolarsResult<Series> {
-    let from = if inputs[0].dtype() == &DataType::String {
-        inputs[0].str()?.clone()
-    } else {
-        inputs[0].cast(&DataType::String)?.str()?.clone()
-    };
-
-    let to = if inputs[1].dtype() == &DataType::String {
-        inputs[1].str()?.clone()
-    } else {
-        inputs[1].cast(&DataType::String)?.str()?.clone()
-    };
+    let from = to_string_chunked(&inputs[0])?;
+    let to = to_string_chunked(&inputs[1])?;
 
     let len = from.len();
 
@@ -104,38 +63,22 @@ where
     T: TryFrom<usize> + Copy + PartialEq + AsUsize + Into<u64>,
     <T as TryFrom<usize>>::Error: std::fmt::Debug,
 {
-    let mut node_to_id: FxHashMap<&str, T> =
-        FxHashMap::with_capacity_and_hasher(from.len(), FxBuildHasher);
-    let mut id_counter: T = usize_to_t(0);
-    let mut edges = SmallVec::<[(T, T); 1024]>::with_capacity(from.len());
+    let (node_to_id, id_counter, edges) = process_edges::<T>(from, to)?;
 
-    from.iter().zip(to.iter()).try_for_each(|(from_node, to_node)| -> PolarsResult<()> {
-        if let (Some(f), Some(t)) = (from_node, to_node) {
-            let f_id = *node_to_id.entry(f).or_insert_with(|| {
-                let id = id_counter;
-                id_counter = usize_to_t(id_counter.as_usize() + 1);
-                id
-            });
-            let t_id = *node_to_id.entry(t).or_insert_with(|| {
-                let id = id_counter;
-                id_counter = usize_to_t(id_counter.as_usize() + 1);
-                id
-            });
-            edges.push((f_id, t_id));
-        }
-        Ok(())
-    })?;
-
+    // Initialize the UnionFind structure with the number of nodes
     let num_nodes = id_counter.as_usize();
     let mut uf = UnionFind::new(num_nodes);
 
+    // Process the edges with union-find
     edges.iter().for_each(|&(f_id, t_id)| {
         uf.union(f_id, t_id);
     });
 
+    // Initialize group IDs and counters
     let mut group_ids = vec![usize_to_t(0); num_nodes];
-    let mut group_counter: T = usize_to_t(1); // Explicitly specify type T
+    let mut group_counter: T = usize_to_t(1);
 
+    // Assign group IDs
     for id in (0..num_nodes).map(|i| usize_to_t(i)) {
         let root = uf.find(id);
         if group_ids[root.as_usize()] == usize_to_t(0) {
@@ -145,6 +88,7 @@ where
         group_ids[id.as_usize()] = group_ids[root.as_usize()];
     }
 
+    // Map the group IDs to the original nodes
     let groups: Vec<u64> = from
         .iter()
         .map(|from_node| {
