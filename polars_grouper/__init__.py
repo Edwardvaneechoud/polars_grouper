@@ -9,7 +9,6 @@ from polars.plugins import register_plugin_function
 from polars_grouper._internal import __version__ as __version__
 from typing import TypeVar
 
-
 DF = TypeVar("DF", pl.DataFrame, pl.LazyFrame)
 
 if TYPE_CHECKING:
@@ -45,6 +44,39 @@ def graph_solver(expr_from: IntoExpr, expr_to: IntoExpr) -> pl.Expr:
         plugin_path=LIB,
         function_name="graph_solver",
         is_elementwise=False
+    )
+
+
+def page_rank(expr_from: IntoExpr, expr_to: IntoExpr,
+              damping_factor: float = 0.85,
+              max_iterations: int = 100,
+              convergence_threshold: float = 1e-6) -> pl.Expr:
+    """
+
+    Parameters
+    ----------
+    expr_from : IntoExpr
+        The column representing the source nodes of the edges.
+    expr_to : IntoExpr
+        The column representing the destination nodes of the edges.
+
+    Returns
+    -------
+    pl.Expr
+        An expression that can be used in Polars transformations to represent the graph component solution.
+
+    Notes
+    -----
+    This function registers a custom plugin for Polars that performs graph operations
+    by processing columns that represent edges between nodes.
+    """
+    return register_plugin_function(
+        args=[expr_from, expr_to],
+        plugin_path=LIB,
+        function_name="page_rank",
+        is_elementwise=False,
+        kwargs={'damping_factor': damping_factor, 'max_iterations': max_iterations,
+                'convergence_threshold': convergence_threshold}
     )
 
 

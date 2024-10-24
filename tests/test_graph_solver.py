@@ -1,6 +1,24 @@
 import polars as pl
 import pytest
-from polars_grouper import graph_solver, super_merger
+from polars_grouper import graph_solver, super_merger, page_rank
+
+
+def test_page_rank():
+    df = pl.DataFrame(
+        {
+            "from": ["A", "B", "C", "E", "F", "G", "I", "I", 'AA'],
+            "to": ["B", "C", "D", "F", "G", "J", "K", "J", 'Z']
+        }
+    )
+    result_df = df.select(page_rank(pl.col("from"), pl.col("to")).alias('rank'))
+    expected_df = pl.DataFrame(
+        {
+            "rank": [0.012500000000000002, 0.023125000000000007, 0.032156250000000004, 0.012500000000000002,
+                     0.023125000000000007, 0.032156250000000004, 0.012500000000000002, 0.012500000000000002,
+                     0.012500000000000002]
+        }
+    )
+    assert result_df.equals(expected_df), "The rank values were not calculated as expected."
 
 
 def test_graph_solver():
