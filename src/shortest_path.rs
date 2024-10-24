@@ -125,6 +125,7 @@ fn shortest_path_output(_: &[Field]) -> PolarsResult<Field> {
     ))
 }
 
+
 #[polars_expr(output_type_func=shortest_path_output)]
 fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> PolarsResult<Series> {
     let from = to_string_chunked(&inputs[0])?;
@@ -172,8 +173,14 @@ fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> Po
             let distance = shortest_path::<NodeId>(start_id, target_id, &adj_list);
 
             if distance != f64::INFINITY {
-                from_nodes.push(start_name.clone());
-                to_nodes.push(target_name.clone());
+                // For undirected graphs, always store lexicographically smaller node first
+                if !kwargs.directed && start_name > target_name {
+                    from_nodes.push(target_name.clone());
+                    to_nodes.push(start_name.clone());
+                } else {
+                    from_nodes.push(start_name.clone());
+                    to_nodes.push(target_name.clone());
+                }
                 distances.push(distance);
             }
 
@@ -190,10 +197,10 @@ fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> Po
     }
 
     let fields = vec![
-        Series::new("from".into(), from_nodes),
-        Series::new("to".into(), to_nodes),
-        Series::new("distance".into(), distances),
+        Series::new(PlSmallStr::from("from"), from_nodes),
+        Series::new(PlSmallStr::from("to"), to_nodes),
+        Series::new(PlSmallStr::from("distance"), distances),
     ];
 
-    StructChunked::from_series("shortest_paths".into(), &fields).map(|ca| ca.into_series())
+    StructChunked::from_series(PlSmallStr::from("shortest_paths"), &fields).map(|ca| ca.into_series())
 }
