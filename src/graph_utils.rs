@@ -44,7 +44,37 @@ pub fn to_string_chunked(series: &Series) -> PolarsResult<StringChunked> {
 }
 
 
+pub fn to_int64_chunked(series: &Series) -> PolarsResult<Int64Chunked> {
+    if series.dtype() == &DataType::Int64 {
+        Ok(series.i64()?.clone())
+    } else {
+        Ok(series.cast(&DataType::Int64)?.i64()?.clone())
+    }
+}
 
+pub fn to_float64_chunked(series: &Series) -> PolarsResult<Float64Chunked> {
+    if series.dtype() == &DataType::Float64 {
+        Ok(series.f64()?.clone())
+    } else {
+        Ok(series.cast(&DataType::Float64)?.f64()?.clone())
+    }
+}
+
+fn get_or_insert_id<T>(
+    node: &str,
+    node_to_id: &mut FxHashMap<String, T>,
+    id_counter: &mut T,
+) -> T
+where
+    T: TryFrom<usize> + Copy + PartialEq + AsUsize,
+    <T as TryFrom<usize>>::Error: std::fmt::Debug,
+{
+    *node_to_id.entry(node.to_string()).or_insert_with(|| {
+        let id = *id_counter;
+        *id_counter = usize_to_t(id_counter.as_usize() + 1);
+        id
+    })
+}
 pub fn process_edges<T>(
     from: &StringChunked,
     to: &StringChunked,
@@ -57,20 +87,11 @@ where
     let mut id_counter: T = usize_to_t(0);
     let mut edges = SmallVec::<[(T, T); 1024]>::with_capacity(from.len());
 
-    // Closure to insert nodes into node_to_id and update id_counter
-    let mut get_or_insert_id = |node: &str| -> T {
-        *node_to_id.entry(node.to_string()).or_insert_with(|| {
-            let id = id_counter;
-            id_counter = usize_to_t(id_counter.as_usize() + 1);
-            id
-        })
-    };
-
     // Process the edges
     from.iter().zip(to.iter()).try_for_each(|(from_node, to_node)| -> PolarsResult<()> {
         if let (Some(f), Some(t)) = (from_node, to_node) {
-            let f_id = get_or_insert_id(f);
-            let t_id = get_or_insert_id(t);
+            let f_id = get_or_insert_id(f, &mut node_to_id, &mut id_counter);
+            let t_id = get_or_insert_id(t, &mut node_to_id, &mut id_counter);
             edges.push((f_id, t_id));
         }
         Ok(())

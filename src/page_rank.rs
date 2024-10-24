@@ -7,7 +7,7 @@ use crate::graph_utils::{process_edges, to_string_chunked, AsUsize};
 
 
 #[derive(Deserialize)]
-struct PageRanKwargs {
+struct PageRankKwargs {
     damping_factor: f64,
     max_iterations: u16,
     convergence_threshold: f64,
@@ -15,7 +15,7 @@ struct PageRanKwargs {
 
 
 #[polars_expr(output_type = Float64)]
-fn page_rank(inputs: &[Series], kwargs: PageRanKwargs) -> PolarsResult<Series> {
+fn page_rank(inputs: &[Series], kwargs: PageRankKwargs) -> PolarsResult<Series> {
     let from = to_string_chunked(&inputs[0])?;
     let to = to_string_chunked(&inputs[1])?;
     let damping_factor = kwargs.damping_factor;

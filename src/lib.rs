@@ -1,6 +1,9 @@
 mod graph_solver;
 mod graph_utils;
 mod page_rank;
+mod shortest_path;
+mod graph_betweenness_centrality;
+mod association_rule_graph_mining;
 
 use pyo3::types::{PyModule, PyModuleMethods};
 use pyo3::{pymodule, Bound, PyResult};
