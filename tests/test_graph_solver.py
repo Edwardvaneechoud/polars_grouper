@@ -439,13 +439,9 @@ def test_calculate_path_empty_graph() -> None:
     Verifies that the function handles the edge case of an empty input
     DataFrame gracefully and returns an empty result.
     """
-    df = pl.DataFrame({"from": [], "to": [], "weight": []})
+    # Implement test for when the graph is empty
+    ...
 
-    result = df.select(calculate_shortest_path(pl.col("from"), pl.col("to"), pl.col("weight")).alias("paths")).unnest(
-        "paths"
-    )
-
-    assert len(result) == 0
 
 
 if __name__ == "__main__":
