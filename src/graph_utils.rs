@@ -1,9 +1,14 @@
 use polars::prelude::*;
 use rustc_hash::FxHashMap;
-use std::convert::TryFrom;
 use smallvec::SmallVec;
+use std::convert::TryFrom;
 
-// Implement AsUsize trait to convert to usize
+// Type aliases to simplify complex types
+type NodeMap<T> = FxHashMap<String, T>;
+type EdgeList<T> = SmallVec<[(T, T); 1024]>;
+type ProcessResult<T> = PolarsResult<(NodeMap<T>, T, EdgeList<T>)>;
+
+// Rest of the traits and implementations remain the same...
 pub trait AsUsize {
     fn as_usize(&self) -> usize;
 }
@@ -34,7 +39,6 @@ where
     T::try_from(value).expect("Invalid conversion from usize")
 }
 
-
 pub fn to_string_chunked(series: &Series) -> PolarsResult<StringChunked> {
     if series.dtype() == &DataType::String {
         Ok(series.str()?.clone())
@@ -42,7 +46,6 @@ pub fn to_string_chunked(series: &Series) -> PolarsResult<StringChunked> {
         Ok(series.cast(&DataType::String)?.str()?.clone())
     }
 }
-
 
 pub fn to_int64_chunked(series: &Series) -> PolarsResult<Int64Chunked> {
     if series.dtype() == &DataType::Int64 {
@@ -60,11 +63,7 @@ pub fn to_float64_chunked(series: &Series) -> PolarsResult<Float64Chunked> {
     }
 }
 
-fn get_or_insert_id<T>(
-    node: &str,
-    node_to_id: &mut FxHashMap<String, T>,
-    id_counter: &mut T,
-) -> T
+fn get_or_insert_id<T>(node: &str, node_to_id: &mut NodeMap<T>, id_counter: &mut T) -> T
 where
     T: TryFrom<usize> + Copy + PartialEq + AsUsize,
     <T as TryFrom<usize>>::Error: std::fmt::Debug,
@@ -75,27 +74,27 @@ where
         id
     })
 }
-pub fn process_edges<T>(
-    from: &StringChunked,
-    to: &StringChunked,
-) -> PolarsResult<(FxHashMap<String, T>, T, SmallVec<[(T, T); 1024]>)>
+
+pub fn process_edges<T>(from: &StringChunked, to: &StringChunked) -> ProcessResult<T>
 where
     T: TryFrom<usize> + Copy + PartialEq + AsUsize,
     <T as TryFrom<usize>>::Error: std::fmt::Debug,
 {
-    let mut node_to_id: FxHashMap<String, T> = FxHashMap::default();
+    let mut node_to_id: NodeMap<T> = FxHashMap::default();
     let mut id_counter: T = usize_to_t(0);
-    let mut edges = SmallVec::<[(T, T); 1024]>::with_capacity(from.len());
+    let mut edges = EdgeList::with_capacity(from.len());
 
     // Process the edges
-    from.iter().zip(to.iter()).try_for_each(|(from_node, to_node)| -> PolarsResult<()> {
-        if let (Some(f), Some(t)) = (from_node, to_node) {
-            let f_id = get_or_insert_id(f, &mut node_to_id, &mut id_counter);
-            let t_id = get_or_insert_id(t, &mut node_to_id, &mut id_counter);
-            edges.push((f_id, t_id));
-        }
-        Ok(())
-    })?;
+    from.iter()
+        .zip(to.iter())
+        .try_for_each(|(from_node, to_node)| -> PolarsResult<()> {
+            if let (Some(f), Some(t)) = (from_node, to_node) {
+                let f_id = get_or_insert_id(f, &mut node_to_id, &mut id_counter);
+                let t_id = get_or_insert_id(t, &mut node_to_id, &mut id_counter);
+                edges.push((f_id, t_id));
+            }
+            Ok(())
+        })?;
 
     Ok((node_to_id, id_counter, edges))
 }

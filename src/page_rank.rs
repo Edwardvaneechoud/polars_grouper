@@ -1,10 +1,9 @@
 use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
-use std::convert::TryFrom;
 use serde::Deserialize;
+use std::convert::TryFrom;
 
 use crate::graph_utils::{process_edges, to_string_chunked, AsUsize};
-
 
 #[derive(Deserialize)]
 struct PageRankKwargs {
@@ -12,7 +11,6 @@ struct PageRankKwargs {
     max_iterations: u16,
     convergence_threshold: f64,
 }
-
 
 #[polars_expr(output_type = Float64)]
 fn page_rank(inputs: &[Series], kwargs: PageRankKwargs) -> PolarsResult<Series> {
@@ -25,11 +23,29 @@ fn page_rank(inputs: &[Series], kwargs: PageRankKwargs) -> PolarsResult<Series> 
     let len = from.len();
 
     if len <= u16::MAX as usize {
-        calculate_pagerank::<u16>(&from, &to, damping_factor, max_iterations, convergence_threshold)
+        calculate_pagerank::<u16>(
+            &from,
+            &to,
+            damping_factor,
+            max_iterations,
+            convergence_threshold,
+        )
     } else if len <= u32::MAX as usize {
-        calculate_pagerank::<u32>(&from, &to, damping_factor, max_iterations, convergence_threshold)
+        calculate_pagerank::<u32>(
+            &from,
+            &to,
+            damping_factor,
+            max_iterations,
+            convergence_threshold,
+        )
     } else {
-        calculate_pagerank::<u64>(&from, &to, damping_factor, max_iterations, convergence_threshold)
+        calculate_pagerank::<u64>(
+            &from,
+            &to,
+            damping_factor,
+            max_iterations,
+            convergence_threshold,
+        )
     }
 }
 
@@ -71,7 +87,8 @@ where
         for node in 0..num_nodes {
             let base_rank = (1.0 - damping_factor) / num_nodes as f64;
 
-            let incoming_rank: f64 = incoming_edges[node].iter()
+            let incoming_rank: f64 = incoming_edges[node]
+                .iter()
                 .map(|&from| {
                     let out_count = outgoing_edges[from.as_usize()].len() as f64;
                     if out_count > 0.0 {

@@ -1,9 +1,14 @@
+use crate::graph_utils::{to_string_chunked, usize_to_t, AsUsize};
 use polars::prelude::*;
-use std::collections::{HashMap, VecDeque};
-use std::convert::TryFrom;
 use pyo3_polars::derive::polars_expr;
 use serde::Deserialize;
-use crate::graph_utils::{AsUsize, usize_to_t, to_string_chunked};
+use std::collections::{HashMap, VecDeque};
+use std::convert::TryFrom;
+
+// Type aliases to reduce complexity
+type NodeMap<T> = HashMap<String, T>;
+type EdgeList<T> = Vec<(T, T)>;
+type ProcessResult<T> = PolarsResult<(NodeMap<T>, T, EdgeList<T>)>;
 
 #[derive(Deserialize)]
 struct BetweennessCentralityKwargs {
@@ -11,15 +16,11 @@ struct BetweennessCentralityKwargs {
     directed: bool,
 }
 
-fn process_edges<T>(
-    from: &StringChunked,
-    to: &StringChunked,
-) -> PolarsResult<(HashMap<String, T>, T, Vec<(T, T)>)>
+fn process_edges<T>(from: &StringChunked, to: &StringChunked) -> ProcessResult<T>
 where
     T: TryFrom<usize> + Copy + PartialEq + AsUsize,
     <T as TryFrom<usize>>::Error: std::fmt::Debug,
 {
-
     let estimated_size = from.len();
     let mut node_to_id = HashMap::with_capacity(estimated_size);
     let mut edges = Vec::with_capacity(estimated_size);
@@ -46,6 +47,7 @@ where
 
     Ok((node_to_id, id_counter, edges))
 }
+
 fn calculate_betweenness<T>(
     adj_list: &[Vec<usize>],
     num_nodes: usize,
@@ -103,9 +105,19 @@ where
         }
     }
 
+    normalize_centrality(&mut centrality, num_nodes, directed, normalized);
+    centrality
+}
+
+fn normalize_centrality(
+    centrality: &mut [f64],
+    num_nodes: usize,
+    directed: bool,
+    normalized: bool,
+) {
     // For undirected graphs, divide by 2 since each path is counted twice
     if !directed {
-        for c in &mut centrality {
+        for c in centrality.iter_mut() {
             *c /= 2.0;
         }
     }
@@ -119,27 +131,27 @@ where
             2.0 / ((n - 1.0) * (n - 2.0))
         };
 
-        for c in &mut centrality {
+        for c in centrality.iter_mut() {
             *c *= norm;
         }
     }
-
-    centrality
 }
-
 
 fn betweenness_centrality_output(_: &[Field]) -> PolarsResult<Field> {
     Ok(Field::new(
-        "betweenness_centrality".into(),
+        PlSmallStr::from("betweenness_centrality"),
         DataType::Struct(vec![
-            Field::new("node".into(), DataType::String),
-            Field::new("centrality".into(), DataType::Float64),
-        ])
+            Field::new(PlSmallStr::from("node"), DataType::String),
+            Field::new(PlSmallStr::from("centrality"), DataType::Float64),
+        ]),
     ))
 }
 
 #[polars_expr(output_type_func=betweenness_centrality_output)]
-fn graph_betweenness_centrality(inputs: &[Series], kwargs: BetweennessCentralityKwargs) -> PolarsResult<Series> {
+fn graph_betweenness_centrality(
+    inputs: &[Series],
+    kwargs: BetweennessCentralityKwargs,
+) -> PolarsResult<Series> {
     let from = to_string_chunked(&inputs[0])?;
     let to = to_string_chunked(&inputs[1])?;
     type NodeId = u32;
@@ -157,16 +169,8 @@ fn graph_betweenness_centrality(inputs: &[Series], kwargs: BetweennessCentrality
     }
 
     // Calculate centrality
-    let centrality = calculate_betweenness::<NodeId>(
-        &adj_list,
-        num_nodes,
-        kwargs.normalized,
-        kwargs.directed
-    );
-
-    // Create result series
-    let mut nodes = Vec::with_capacity(num_nodes);
-    let mut centrality_values = Vec::with_capacity(num_nodes);
+    let centrality =
+        calculate_betweenness::<NodeId>(&adj_list, num_nodes, kwargs.normalized, kwargs.directed);
 
     // Create reverse mapping for node IDs to names
     let id_to_node: HashMap<_, _> = node_to_id
@@ -174,19 +178,22 @@ fn graph_betweenness_centrality(inputs: &[Series], kwargs: BetweennessCentrality
         .map(|(k, &v)| (v.as_usize(), k.clone()))
         .collect();
 
-    // Build result vectors
-    for i in 0..num_nodes {
-        if let Some(node_name) = id_to_node.get(&i) {
-            nodes.push(node_name.clone());
-            centrality_values.push(centrality[i]);
-        }
-    }
+    // Build result vectors using iterator
+    let (nodes, centrality_values): (Vec<_>, Vec<_>) = centrality
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &cent)| {
+            id_to_node
+                .get(&i)
+                .map(|node_name| (node_name.clone(), cent))
+        })
+        .unzip();
 
     let fields = vec![
-        Series::new("node".into(), nodes),
-        Series::new("centrality".into(), centrality_values),
+        Series::new(PlSmallStr::from("node"), nodes),
+        Series::new(PlSmallStr::from("centrality"), centrality_values),
     ];
 
-    StructChunked::from_series("betweenness_centrality".into(), &fields)
+    StructChunked::from_series(PlSmallStr::from("betweenness_centrality"), &fields)
         .map(|ca| ca.into_series())
 }

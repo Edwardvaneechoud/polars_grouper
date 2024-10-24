@@ -18,9 +18,7 @@ where
 {
     fn new(size: usize) -> Self {
         UnionFind {
-            nodes: (0..size)
-                .map(|i| usize_to_t(i))
-                .collect(),
+            nodes: (0..size).map(|i| usize_to_t(i)).collect(),
         }
     }
 
@@ -62,10 +60,10 @@ fn graph_solver(inputs: &[Series]) -> PolarsResult<Series> {
 
 fn process_graph<T>(from: &StringChunked, to: &StringChunked) -> PolarsResult<Series>
 where
-    T: TryFrom<usize> + Copy + PartialEq + AsUsize + Into<u64>, // Add AsUsize here
+    T: TryFrom<usize> + Copy + PartialEq + AsUsize + Into<u64>,
     <T as TryFrom<usize>>::Error: std::fmt::Debug,
 {
-    let (node_to_id, id_counter, edges) = process_edges::<T>(&from, &to)?;
+    let (node_to_id, id_counter, edges) = process_edges::<T>(from, to)?;
 
     // Initialize the UnionFind structure with the number of nodes
     let num_nodes = id_counter.as_usize();
@@ -78,7 +76,7 @@ where
 
     // Initialize group IDs and counters
     let mut group_ids = vec![usize_to_t(0); num_nodes];
-    let mut group_counter: T = usize_to_t(1); // Ensure correct type for group_counter
+    let mut group_counter: T = usize_to_t(1);
 
     // Assign group IDs
     for id in (0..num_nodes).map(|i| usize_to_t(i)) {
