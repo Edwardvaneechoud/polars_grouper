@@ -68,7 +68,7 @@ result = super_merger_weighted(
 print(result)
 ```
 
-### Advanced Graph Analytics
+### Additional Graph Analytics
 
 #### Shortest Path Analysis
 Find shortest paths between nodes:
