@@ -65,6 +65,7 @@ def graph_solver(expr_from: IntoExpr, expr_to: IntoExpr) -> pl.Expr:
     - The function treats the graph as undirected by default
     - Component groups are assigned arbitrary but consistent numeric identifiers
     - Isolated nodes will be assigned their own unique component
+
     """
     return register_plugin_function(
         args=[expr_from, expr_to],
@@ -81,7 +82,7 @@ def calculate_shortest_path(
     directed: bool = False
 ) -> pl.Expr:
     """
-    Calculate shortest paths between all pairs of nodes in a weighted graph.
+    Calculate the shortest paths between all pairs of nodes in a weighted graph.
 
     Implements Dijkstra's algorithm to find the shortest paths between all pairs of nodes
     in a graph. The function can handle both directed and undirected graphs.
@@ -101,9 +102,9 @@ def calculate_shortest_path(
     -------
     pl.Expr
         A Polars expression that resolves to a struct containing three fields:
-        - 'from': source node of the path
-        - 'to': destination node of the path
-        - 'distance': total distance (sum of weights) of the shortest path
+        - "from": source node of the path
+        - "to": destination node of the path
+        - "distance": total distance (sum of weights) of the shortest path
 
     Examples
     --------
@@ -145,6 +146,7 @@ def calculate_shortest_path(
     - Weights must be non-negative
     - For undirected graphs, paths A→B and B→A will have the same distance
     - Memory usage scales with O(V²) where V is the number of vertices
+
     """
     return register_plugin_function(
         args=[expr_from, expr_to, weights],
@@ -152,7 +154,7 @@ def calculate_shortest_path(
         function_name="graph_find_shortest_path",
         is_elementwise=False,
         changes_length=True,
-        kwargs={'directed': directed}
+        kwargs={"directed": directed}
     )
 
 
@@ -167,7 +169,7 @@ def page_rank(
     Calculate PageRank scores for nodes in a graph.
 
     Implements the PageRank algorithm to compute importance scores for nodes in a graph
-    based on the link structure. The algorithm was originally developed by Google's founders
+    based on the link structure. The algorithm was originally developed by Google"s founders
     to rank web pages.
 
     Parameters
@@ -188,9 +190,9 @@ def page_rank(
     -------
     pl.Expr
         A Polars expression that resolves to a struct containing:
-        - 'node': node identifier
-        - 'score': PageRank score for the node
-        - 'iterations': number of iterations until convergence
+        - "node": node identifier
+        - "score": PageRank score for the node
+        - "iterations": number of iterations until convergence
 
     Examples
     --------
@@ -229,15 +231,16 @@ def page_rank(
     - Isolated nodes receive a minimum base score
     - Higher damping factors may require more iterations to converge
     - The algorithm may not converge if max_iterations is too low
+
     """
     return register_plugin_function(
         args=[expr_from, expr_to],
         plugin_path=LIB,
         function_name="page_rank",
         is_elementwise=False,
-        kwargs={'damping_factor': damping_factor,
-                'max_iterations': max_iterations,
-                'convergence_threshold': convergence_threshold}
+        kwargs={"damping_factor": damping_factor,
+                "max_iterations": max_iterations,
+                "convergence_threshold": convergence_threshold}
     )
 
 
@@ -260,7 +263,7 @@ def super_merger(df: DF, from_col_name: str, to_col_name: str) -> DF:
     Returns
     -------
     DF
-        Input DataFrame with an additional 'group' column containing component assignments.
+        Input DataFrame with an additional "group" column containing component assignments.
 
     Examples
     --------
@@ -294,8 +297,9 @@ def super_merger(df: DF, from_col_name: str, to_col_name: str) -> DF:
     - Works with both eager (DataFrame) and lazy (LazyFrame) evaluation
     - Group assignments are arbitrary but consistent integers
     - The function treats the graph as undirected
+
     """
-    return df.with_columns(graph_solver(pl.col(from_col_name), pl.col(to_col_name)).alias('group'))
+    return df.with_columns(graph_solver(pl.col(from_col_name), pl.col(to_col_name)).alias("group"))
 
 
 def super_merger_weighted(
@@ -328,7 +332,7 @@ def super_merger_weighted(
     -------
     DF
         Filtered DataFrame containing only edges above the weight threshold,
-        with an additional 'group' column containing component assignments.
+        with an additional "group" column containing component assignments.
 
     Examples
     --------
@@ -366,9 +370,10 @@ def super_merger_weighted(
     - Works with both eager (DataFrame) and lazy (LazyFrame) evaluation
     - The function treats the graph as undirected
     - Weight threshold should be chosen based on the scale of your weight values
+
     """
     return (df.filter(pl.col(weighted_col_name) >= weight_threshold)
-            .with_columns(graph_solver(pl.col(from_col_name), pl.col(to_col_name)).alias('group')))
+            .with_columns(graph_solver(pl.col(from_col_name), pl.col(to_col_name)).alias("group")))
 
 
 def betweenness_centrality(
@@ -399,8 +404,8 @@ def betweenness_centrality(
     -------
     pl.Expr
         A Polars expression that resolves to a struct containing:
-        - 'node': node identifier
-        - 'centrality': betweenness centrality score
+        - "node": node identifier
+        - "centrality": betweenness centrality score
 
     Examples
     --------
@@ -442,6 +447,7 @@ def betweenness_centrality(
     - Memory usage is O(|V| + |E|)
     - For large graphs, consider using approximate algorithms
     - Isolated nodes will have centrality of 0
+
     """
     return register_plugin_function(
         args=[expr_from, expr_to],
@@ -449,7 +455,7 @@ def betweenness_centrality(
         function_name="graph_betweenness_centrality",
         is_elementwise=False,
         changes_length=True,
-        kwargs={'normalized': normalized, 'directed': directed}
+        kwargs={"normalized": normalized, "directed": directed}
     )
 
 
@@ -487,12 +493,12 @@ def graph_association_rules(
     -------
     pl.Expr
         A Polars expression that resolves to a struct containing:
-        - 'item': item identifier
-        - 'support': support count in transactions
-        - 'lift_score': item's importance in association network
-        - 'pattern': frequent pattern identifier
-        - 'consequents': list of top 5 frequently associated items
-        - 'confidence_scores': confidence scores for associations
+        - "item": item identifier
+        - "support": support count in transactions
+        - "lift_score": item"s importance in association network
+        - "pattern": frequent pattern identifier
+        - "consequents": list of top 5 frequently associated items
+        - "confidence_scores": confidence scores for associations
 
     Examples
     --------
@@ -532,8 +538,9 @@ def graph_association_rules(
     - Items must appear in min_support proportion of transactions to be included
     - Confidence scores indicate strength of association rules
     - Patterns identify groups of frequently associated items
-    - Lift score indicates item's importance in association networks
+    - Lift score indicates item"s importance in association networks
     - Large itemsets (> max_itemset_size) are filtered to prevent performance issues
+
     """
     return register_plugin_function(
         args=[transaction_id, item_id] + ([frequency] if frequency is not None else []),
@@ -542,9 +549,9 @@ def graph_association_rules(
         is_elementwise=False,
         changes_length=True,
         kwargs={
-            'min_support': min_support,
-            'min_confidence': min_confidence,
-            'max_itemset_size': max_itemset_size,
-            'weighted': weighted
+            "min_support": min_support,
+            "min_confidence": min_confidence,
+            "max_itemset_size": max_itemset_size,
+            "weighted": weighted
         }
     )
