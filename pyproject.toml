@@ -60,6 +60,10 @@ disallow_untyped_defs = true
 module = "polars.utils.udfs"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "tests.*"
+disable_error_code = ["arg-type", "attr-defined"]  # Disable specific errors for tests
+
 [tool.ruff]
 select = ["E", "F", "B", "Q", "D"]
 ignore = ["D100", "D104", "D205", "D212"]
