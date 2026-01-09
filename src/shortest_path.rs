@@ -137,6 +137,17 @@ fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> Po
     let (node_to_id, id_counter, edges) = process_edges_with_weights::<NodeId>(from, to, weights)?;
     let num_nodes = id_counter.as_usize();
 
+    // Handle empty graph case
+    if num_nodes == 0 {
+        let fields = vec![
+            Series::new(PlSmallStr::from("from"), Vec::<String>::new()),
+            Series::new(PlSmallStr::from("to"), Vec::<String>::new()),
+            Series::new(PlSmallStr::from("distance"), Vec::<f64>::new()),
+        ];
+        return StructChunked::from_series(PlSmallStr::from("shortest_paths"), &fields)
+            .map(|ca| ca.into_series());
+    }
+
     let mut adj_list = vec![Vec::new(); num_nodes];
     for (from_id, to_id, weight) in edges {
         adj_list[from_id.as_usize()].push((to_id.as_usize(), weight));

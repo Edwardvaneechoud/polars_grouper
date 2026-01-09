@@ -9,6 +9,7 @@ where
     T: Copy + PartialEq + AsUsize,
 {
     nodes: Vec<T>,
+    rank: Vec<u8>,
 }
 
 impl<T> UnionFind<T>
@@ -19,6 +20,7 @@ where
     fn new(size: usize) -> Self {
         UnionFind {
             nodes: (0..size).map(|i| usize_to_t(i)).collect(),
+            rank: vec![0; size],
         }
     }
 
@@ -26,6 +28,7 @@ where
     fn find(&mut self, mut x: T) -> T {
         while x != self.nodes[x.as_usize()] {
             let parent = self.nodes[x.as_usize()];
+            // Path compression: point to grandparent
             self.nodes[x.as_usize()] = self.nodes[parent.as_usize()];
             x = parent;
         }
@@ -37,7 +40,17 @@ where
         let root_x = self.find(x);
         let root_y = self.find(y);
         if root_x != root_y {
-            self.nodes[root_y.as_usize()] = root_x;
+            // Union by rank: attach smaller tree under larger tree
+            let rank_x = self.rank[root_x.as_usize()];
+            let rank_y = self.rank[root_y.as_usize()];
+            if rank_x < rank_y {
+                self.nodes[root_x.as_usize()] = root_y;
+            } else if rank_x > rank_y {
+                self.nodes[root_y.as_usize()] = root_x;
+            } else {
+                self.nodes[root_y.as_usize()] = root_x;
+                self.rank[root_x.as_usize()] += 1;
+            }
         }
     }
 }

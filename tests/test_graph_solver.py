@@ -439,8 +439,18 @@ def test_calculate_path_empty_graph() -> None:
     Verifies that the function handles the edge case of an empty input
     DataFrame gracefully and returns an empty result.
     """
-    # Implement test for when the graph is empty
-    ...
+    df = pl.DataFrame(
+        {"from": pl.Series([], dtype=pl.String), "to": pl.Series([], dtype=pl.String), "weight": pl.Series([], dtype=pl.Float64)}
+    )
+
+    result = df.select(
+        calculate_shortest_path(pl.col("from"), pl.col("to"), pl.col("weight"), directed=False).alias("paths")
+    ).unnest("paths")
+
+    assert len(result) == 0
+    assert "from" in result.columns
+    assert "to" in result.columns
+    assert "distance" in result.columns
 
 
 

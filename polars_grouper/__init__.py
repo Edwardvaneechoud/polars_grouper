@@ -16,6 +16,12 @@ if TYPE_CHECKING:
 LIB = Path(__file__).parent
 
 
+def _validate_range(value: float, name: str, min_val: float = 0.0, max_val: float = 1.0) -> None:
+    """Validate that a value is within the specified range."""
+    if not min_val <= value <= max_val:
+        raise ValueError(f"{name} must be between {min_val} and {max_val}, got {value}")
+
+
 def graph_solver(expr_from: IntoExpr, expr_to: IntoExpr) -> pl.Expr:
     """
     Identify connected components in a graph represented by edges.
@@ -51,13 +57,13 @@ def graph_solver(expr_from: IntoExpr, expr_to: IntoExpr) -> pl.Expr:
     shape: (5, 3)
     ┌────────┬────────┬───────────┐
     │ source ┆ target ┆ component │
-    │ str    ┆ str    ┆ i64      │
+    │ str    ┆ str    ┆ u64       │
     ╞════════╪════════╪═══════════╡
-    │ A      ┆ B      ┆ 1        │
-    │ B      ┆ C      ┆ 1        │
-    │ C      ┆ A      ┆ 1        │
-    │ D      ┆ E      ┆ 2        │
-    │ E      ┆ F      ┆ 2        │
+    │ A      ┆ B      ┆ 1         │
+    │ B      ┆ C      ┆ 1         │
+    │ C      ┆ A      ┆ 1         │
+    │ D      ┆ E      ┆ 2         │
+    │ E      ┆ F      ┆ 2         │
     └────────┴────────┴───────────┘
 
     Notes
@@ -186,10 +192,8 @@ def page_rank(
     Returns
     -------
     pl.Expr
-        A Polars expression that resolves to a struct containing:
-        - "node": node identifier
-        - "score": PageRank score for the node
-        - "iterations": number of iterations until convergence
+        A Polars expression that resolves to a Float64 Series containing PageRank scores
+        for each row, corresponding to the score of the source node in that row.
 
     Examples
     --------
@@ -201,35 +205,49 @@ def page_rank(
     ... })
     >>>
     >>> # Calculate PageRank scores
-    >>> result = df.select(
+    >>> result = df.with_columns(
     ...     page_rank(
     ...         pl.col("from"),
     ...         pl.col("to"),
     ...         damping_factor=0.85,
     ...         max_iterations=50
     ...     ).alias("pagerank")
-    ... ).unnest("pagerank")
+    ... )
     >>>
     >>> print(result)
-    shape: (4, 2)
-    ┌──────┬───────────┐
-    │ node ┆ score     │
-    │ str  ┆ f64      │
-    ╞══════╪═══════════╡
-    │ A    ┆ 0.283019 │
-    │ B    ┆ 0.330189 │
-    │ C    ┆ 0.254717 │
-    │ D    ┆ 0.132075 │
-    └──────┴───────────┘
+    shape: (5, 3)
+    ┌──────┬─────┬───────────┐
+    │ from ┆ to  ┆ pagerank  │
+    │ str  ┆ str ┆ f64       │
+    ╞══════╪═════╪═══════════╡
+    │ A    ┆ B   ┆ 0.283019  │
+    │ A    ┆ C   ┆ 0.283019  │
+    │ B    ┆ C   ┆ 0.330189  │
+    │ C    ┆ A   ┆ 0.254717  │
+    │ D    ┆ B   ┆ 0.132075  │
+    └──────┴─────┴───────────┘
 
     Notes
     -----
-    - The sum of all PageRank scores will be approximately 1.0
+    - The sum of all unique PageRank scores will be approximately 1.0
     - Isolated nodes receive a minimum base score
     - Higher damping factors may require more iterations to converge
     - The algorithm may not converge if max_iterations is too low
 
+    Raises
+    ------
+    ValueError
+        If damping_factor is not between 0 and 1.
+        If max_iterations is not positive.
+        If convergence_threshold is not positive.
+
     """
+    _validate_range(damping_factor, "damping_factor", 0.0, 1.0)
+    if max_iterations <= 0:
+        raise ValueError(f"max_iterations must be positive, got {max_iterations}")
+    if convergence_threshold <= 0:
+        raise ValueError(f"convergence_threshold must be positive, got {convergence_threshold}")
+
     return register_plugin_function(
         args=[expr_from, expr_to],
         plugin_path=LIB,
@@ -280,7 +298,7 @@ def super_merger(df: DF, from_col_name: str, to_col_name: str) -> DF:
     shape: (6, 4)
     ┌──────┬──────┬───────┬───────┐
     │ from ┆ to   ┆ value ┆ group │
-    │ str  ┆ str  ┆ i64   ┆ i64   │
+    │ str  ┆ str  ┆ i64   ┆ u64   │
     ╞══════╪══════╪═══════╪═══════╡
     │ A    ┆ B    ┆ 1     ┆ 1     │
     │ B    ┆ C    ┆ 2     ┆ 1     │
@@ -351,7 +369,7 @@ def super_merger_weighted(
     shape: (3, 4)
     ┌──────┬──────┬────────┬───────┐
     │ from ┆ to   ┆ weight ┆ group │
-    │ str  ┆ str  ┆ f64    ┆ i64   │
+    │ str  ┆ str  ┆ f64    ┆ u64   │
     ╞══════╪══════╪════════╪═══════╡
     │ A    ┆ B    ┆ 0.9    ┆ 1     │
     │ D    ┆ E    ┆ 0.8    ┆ 2     │
@@ -534,7 +552,19 @@ def graph_association_rules(
     - Lift score indicates item"s importance in association networks
     - Large itemsets (> max_itemset_size) are filtered to prevent performance issues
 
+    Raises
+    ------
+    ValueError
+        If min_support is not between 0 and 1.
+        If min_confidence is not between 0 and 1.
+        If max_itemset_size is not positive.
+
     """
+    _validate_range(min_support, "min_support", 0.0, 1.0)
+    _validate_range(min_confidence, "min_confidence", 0.0, 1.0)
+    if max_itemset_size <= 0:
+        raise ValueError(f"max_itemset_size must be positive, got {max_itemset_size}")
+
     return register_plugin_function(
         args=[transaction_id, item_id] + ([frequency] if frequency is not None else []),
         plugin_path=LIB,
