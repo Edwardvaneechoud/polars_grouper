@@ -196,11 +196,12 @@ fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> Po
         }
     }
 
-    let fields = vec![
+    let fields = [
         Series::new(PlSmallStr::from("from"), from_nodes),
         Series::new(PlSmallStr::from("to"), to_nodes),
         Series::new(PlSmallStr::from("distance"), distances),
     ];
 
-    StructChunked::from_series(PlSmallStr::from("shortest_paths"), &fields).map(|ca| ca.into_series())
+    let length = fields.first().map(|s| s.len()).unwrap_or(0);
+    StructChunked::from_series(PlSmallStr::from("shortest_paths"), length, fields.iter()).map(|ca| ca.into_series())
 }

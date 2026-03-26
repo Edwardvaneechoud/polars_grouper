@@ -275,7 +275,7 @@ fn graph_association_rules(
         }
     }
 
-    let fields = vec![
+    let fields = [
         Series::new("item".into(), items),
         Series::new("support".into(), supports),
         Series::new("lift_score".into(), lift_scores),
@@ -284,5 +284,6 @@ fn graph_association_rules(
         Series::new("confidence_scores".into(), confidence_scores),
     ];
 
-    StructChunked::from_series("association_rules".into(), &fields).map(|ca| ca.into_series())
+    let length = fields.first().map(|s| s.len()).unwrap_or(0);
+    StructChunked::from_series(PlSmallStr::from("association_rules"), length, fields.iter()).map(|ca| ca.into_series())
 }
