@@ -65,9 +65,11 @@ module = "tests.*"
 disable_error_code = ["arg-type", "attr-defined"]  # Disable specific errors for tests
 
 [tool.ruff]
-select = ["E", "F", "B", "Q", "D"]
-ignore = ["D100", "D104", "D205", "D212"]
 line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "Q", "D"]
+ignore = ["D100", "D104", "D205", "D211", "D212"]
 
 
 [tool.pytest.ini_options]
