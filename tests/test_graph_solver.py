@@ -317,7 +317,7 @@ def test_weighted_vs_unweighted() -> None:
     ).unnest("rules")
 
     # Support values should differ between weighted and unweighted
-    assert not all(w == u for w, u in zip(weighted["support"], unweighted["support"]))
+    assert not all(w == u for w, u in zip(weighted["support"], unweighted["support"], strict=True))
 
 
 def test_max_itemset_size() -> None:
