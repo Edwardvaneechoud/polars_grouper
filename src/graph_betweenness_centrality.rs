@@ -189,7 +189,7 @@ fn graph_betweenness_centrality(
         })
         .unzip();
 
-    let fields = vec![
+    let fields = [
         Series::new(PlSmallStr::from("node"), nodes),
         Series::new(PlSmallStr::from("centrality"), centrality_values),
     ];

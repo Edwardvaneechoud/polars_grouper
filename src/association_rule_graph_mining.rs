@@ -275,7 +275,7 @@ fn graph_association_rules(
         }
     }
 
-    let fields = vec![
+    let fields = [
         Series::new("item".into(), items),
         Series::new("support".into(), supports),
         Series::new("lift_score".into(), lift_scores),

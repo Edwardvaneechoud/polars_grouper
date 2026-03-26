@@ -196,7 +196,7 @@ fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> Po
         }
     }
 
-    let fields = vec![
+    let fields = [
         Series::new(PlSmallStr::from("from"), from_nodes),
         Series::new(PlSmallStr::from("to"), to_nodes),
         Series::new(PlSmallStr::from("distance"), distances),
