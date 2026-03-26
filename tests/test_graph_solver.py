@@ -443,6 +443,5 @@ def test_calculate_path_empty_graph() -> None:
     ...
 
 
-
 if __name__ == "__main__":
     pytest.main()
