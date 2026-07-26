@@ -1,4 +1,9 @@
-polars~=1.39
+# Dev/CI baseline only -- NOT the compatibility contract for the published
+# package. That lives in [project].dependencies in pyproject.toml.
+# Pinned so an upstream Polars release cannot turn the blocking CI job red for
+# reasons unrelated to the change under test; the `latest_polars_test` job in
+# .github/workflows/publish_to_pypi.yml covers newer releases instead.
+polars==1.43.0
 maturin~=1.7
 ruff~=0.7.0
 pytest~=8.3.3

@@ -1,6 +1,8 @@
 [package]
 name = "polars-grouper" # Updated to match the new name
-version = "0.1.0"
+# Keep in sync with [project].version in pyproject.toml -- this is what
+# `polars_grouper.__version__` reports, via env!("CARGO_PKG_VERSION").
+version = "0.5.0"
 edition = "2021"
 
 [lib]

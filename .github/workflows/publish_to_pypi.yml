@@ -60,6 +60,44 @@ jobs:
           source .venv/bin/activate
           make test
 
+  # Early-warning job: the compiled plugin binds to Polars through the
+  # `polars-ffi` plugin ABI, which pip/poetry cannot see, so a breaking Polars
+  # release would otherwise only surface downstream at plugin *call* time.
+  # This job tests against the newest Polars on PyPI and is allowed to fail.
+  # When it goes red, tighten the upper bound in [project].dependencies in
+  # pyproject.toml (currently `polars>=1.3.0,<2.0.0`) and cut a release.
+  latest_polars_test:
+    name: Test against latest Polars (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Rust
+        run: rustup show
+      - uses: mozilla-actions/sccache-action@v0.0.3
+
+      - name: Set up virtual environment
+        run: python -m venv .venv
+
+      - name: Build against the newest Polars release
+        run: |
+          source .venv/bin/activate
+          pip install maturin pytest
+          pip install --upgrade polars
+          python -c "import polars; print('Testing against polars', polars.__version__)"
+          maturin develop --release
+
+      # A clean build and a successful import prove nothing -- a plugin ABI
+      # mismatch only surfaces when a registered function is actually called,
+      # which the test suite does.
+      - name: Run tests
+        run: |
+          source .venv/bin/activate
+          python -m pytest tests -v
 
   linux:
     runs-on: ubuntu-latest
