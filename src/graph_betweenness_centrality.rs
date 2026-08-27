@@ -195,6 +195,10 @@ fn graph_betweenness_centrality(
     ];
 
     let length = fields.first().map(|s| s.len()).unwrap_or(0);
-    StructChunked::from_series(PlSmallStr::from("betweenness_centrality"), length, fields.iter())
-        .map(|ca| ca.into_series())
+    StructChunked::from_series(
+        PlSmallStr::from("betweenness_centrality"),
+        length,
+        fields.iter(),
+    )
+    .map(|ca| ca.into_series())
 }

@@ -285,5 +285,6 @@ fn graph_association_rules(
     ];
 
     let length = fields.first().map(|s| s.len()).unwrap_or(0);
-    StructChunked::from_series(PlSmallStr::from("association_rules"), length, fields.iter()).map(|ca| ca.into_series())
+    StructChunked::from_series(PlSmallStr::from("association_rules"), length, fields.iter())
+        .map(|ca| ca.into_series())
 }

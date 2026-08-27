@@ -98,3 +98,36 @@ where
 
     Ok((node_to_id, id_counter, edges))
 }
+
+/// Align an input column with the number of edges in the graph.
+///
+/// A length-1 column is treated as a scalar and repeated, so `pl.lit(1.0)` means
+/// "every edge weighs the same". Any other length mismatch is an error: zipping
+/// columns of unequal length silently truncates to the shortest one and builds a
+/// graph that is missing most of its edges.
+pub fn broadcast_to_len(series: &Series, len: usize, role: &str) -> PolarsResult<Series> {
+    if series.len() == len {
+        Ok(series.clone())
+    } else if series.len() == 1 {
+        Ok(series.new_from_index(0, len))
+    } else {
+        polars_bail!(
+            ShapeMismatch:
+            "`{}` has length {}, expected {} (one value per edge) or 1 (a scalar broadcast to every edge)",
+            role, series.len(), len
+        )
+    }
+}
+
+/// The number of edges implied by the node columns of a graph.
+///
+/// Columns of length 1 are scalars and do not constrain the edge count; if every
+/// column is a scalar the graph has a single edge.
+pub fn edge_count(inputs: &[Series]) -> usize {
+    inputs
+        .iter()
+        .map(|s| s.len())
+        .filter(|&l| l != 1)
+        .max()
+        .unwrap_or(1)
+}

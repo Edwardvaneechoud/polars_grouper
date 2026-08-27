@@ -1,4 +1,6 @@
-use crate::graph_utils::{to_float64_chunked, to_string_chunked, usize_to_t, AsUsize};
+use crate::graph_utils::{
+    broadcast_to_len, edge_count, to_float64_chunked, to_string_chunked, usize_to_t, AsUsize,
+};
 use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
 use serde::Deserialize;
@@ -75,11 +77,13 @@ where
     Ok((node_to_id, id_counter, edges))
 }
 
-fn shortest_path<T>(start_id: usize, target_id: usize, adj_list: &[Vec<(usize, i64)>]) -> f64
-where
-    T: TryFrom<usize> + Copy + PartialEq + AsUsize + Into<u64>,
-    <T as TryFrom<usize>>::Error: std::fmt::Debug,
-{
+/// Single-source Dijkstra.
+///
+/// Returns the cost of the cheapest path from `start_id` to every node, with
+/// `i64::MAX` marking nodes that are unreachable. Resolving every target in one
+/// traversal is what lets the caller emit exactly one row per (source, target)
+/// pair from a single loop.
+fn shortest_paths_from(start_id: usize, adj_list: &[Vec<(usize, i64)>]) -> Vec<i64> {
     let num_nodes = adj_list.len();
     let mut dist = vec![i64::MAX; num_nodes];
     dist[start_id] = 0;
@@ -91,10 +95,6 @@ where
     });
 
     while let Some(State { cost, position }) = heap.pop() {
-        if position == target_id {
-            return cost as f64 / 1000.0;
-        }
-
         if cost > dist[position] {
             continue;
         }
@@ -111,7 +111,7 @@ where
         }
     }
 
-    f64::INFINITY
+    dist
 }
 
 fn shortest_path_output(_: &[Field]) -> PolarsResult<Field> {
@@ -125,12 +125,13 @@ fn shortest_path_output(_: &[Field]) -> PolarsResult<Field> {
     ))
 }
 
-
 #[polars_expr(output_type_func=shortest_path_output)]
 fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> PolarsResult<Series> {
-    let from = to_string_chunked(&inputs[0])?;
-    let to = to_string_chunked(&inputs[1])?;
-    let weights = to_float64_chunked(&inputs[2])?;
+    // `from`/`to` define the edges; a scalar weight is then stretched to match them.
+    let num_edges = edge_count(&inputs[..2]);
+    let from = to_string_chunked(&broadcast_to_len(&inputs[0], num_edges, "from")?)?;
+    let to = to_string_chunked(&broadcast_to_len(&inputs[1], num_edges, "to")?)?;
+    let weights = to_float64_chunked(&broadcast_to_len(&inputs[2], num_edges, "weights")?)?;
 
     type NodeId = u32;
 
@@ -145,10 +146,11 @@ fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> Po
         }
     }
 
+    let ordered_pairs = num_nodes * num_nodes.saturating_sub(1);
     let estimated_pairs = if kwargs.directed {
-        num_nodes * (num_nodes - 1)
+        ordered_pairs
     } else {
-        (num_nodes * (num_nodes - 1)) / 2
+        ordered_pairs / 2
     };
 
     let mut from_nodes = Vec::with_capacity(estimated_pairs);
@@ -161,38 +163,21 @@ fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> Po
         .collect();
     node_ids.sort_by(|a, b| a.0.cmp(b.0));
 
-    for i in 0..node_ids.len() {
-        for j in (if kwargs.directed { 0 } else { i + 1 })..node_ids.len() {
-            if i == j {
+    // A directed graph emits every ordered pair, so each source scans every target.
+    // An undirected pair is emitted once; since node_ids is sorted by name, starting
+    // at i + 1 also puts the lexicographically smaller node in `from`.
+    for (i, &(start_name, start_id)) in node_ids.iter().enumerate() {
+        let dist = shortest_paths_from(start_id, &adj_list);
+        let first_target = if kwargs.directed { 0 } else { i + 1 };
+
+        for (j, &(target_name, target_id)) in node_ids.iter().enumerate().skip(first_target) {
+            if i == j || dist[target_id] == i64::MAX {
                 continue;
             }
 
-            let (start_name, start_id) = node_ids[i];
-            let (target_name, target_id) = node_ids[j];
-
-            let distance = shortest_path::<NodeId>(start_id, target_id, &adj_list);
-
-            if distance != f64::INFINITY {
-                // For undirected graphs, always store lexicographically smaller node first
-                if !kwargs.directed && start_name > target_name {
-                    from_nodes.push(target_name.clone());
-                    to_nodes.push(start_name.clone());
-                } else {
-                    from_nodes.push(start_name.clone());
-                    to_nodes.push(target_name.clone());
-                }
-                distances.push(distance);
-            }
-
-            if kwargs.directed {
-                let reverse_distance = shortest_path::<NodeId>(target_id, start_id, &adj_list);
-
-                if reverse_distance != f64::INFINITY {
-                    from_nodes.push(target_name.clone());
-                    to_nodes.push(start_name.clone());
-                    distances.push(reverse_distance);
-                }
-            }
+            from_nodes.push(start_name.clone());
+            to_nodes.push(target_name.clone());
+            distances.push(dist[target_id] as f64 / 1000.0);
         }
     }
 
@@ -203,5 +188,6 @@ fn graph_find_shortest_path(inputs: &[Series], kwargs: ShortestPathKwargs) -> Po
     ];
 
     let length = fields.first().map(|s| s.len()).unwrap_or(0);
-    StructChunked::from_series(PlSmallStr::from("shortest_paths"), length, fields.iter()).map(|ca| ca.into_series())
+    StructChunked::from_series(PlSmallStr::from("shortest_paths"), length, fields.iter())
+        .map(|ca| ca.into_series())
 }
