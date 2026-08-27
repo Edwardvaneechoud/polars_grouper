@@ -2,7 +2,7 @@
 name = "polars-grouper" # Updated to match the new name
 # Keep in sync with [project].version in pyproject.toml -- this is what
 # `polars_grouper.__version__` reports, via env!("CARGO_PKG_VERSION").
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 
 [lib]

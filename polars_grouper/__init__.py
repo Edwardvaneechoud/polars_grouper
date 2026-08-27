@@ -91,6 +91,8 @@ def calculate_shortest_path(
         Expression representing the destination nodes of the edges.
     weights : IntoExpr
         Expression representing the edge weights. Must be non-negative values.
+        A single scalar (for example ``pl.lit(1.0)``) is broadcast to every edge;
+        any other length that does not match the edge count raises an error.
     directed : bool, default False
         If True, treats the graph as directed. If False, treats edges as bidirectional.
 
@@ -139,6 +141,9 @@ def calculate_shortest_path(
     Notes
     -----
     - Returns only existing paths (unreachable pairs are excluded)
+    - Each pair is returned exactly once: directed results contain both A→B and B→A,
+      undirected results contain a single row per pair with the lexicographically
+      smaller node in "from"
     - Weights must be non-negative
     - For undirected graphs, paths A→B and B→A will have the same distance
     - Memory usage scales with O(V²) where V is the number of vertices

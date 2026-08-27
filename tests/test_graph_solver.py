@@ -393,25 +393,87 @@ def test_calculate_shortest_path() -> None:
         assert abs(actual_paths[(start, end)] - distance) < 0.1
 
 
+def _path_rows(df: pl.DataFrame, directed: bool) -> list[tuple[str, str, float]]:
+    """
+    Run calculate_shortest_path and return its rows as a sorted list of tuples.
+
+    Returning a list rather than a dict keeps duplicate ``(from, to)`` pairs visible;
+    collapsing the result into a dict is what let a 2x duplication bug go unnoticed.
+    """
+    result = df.select(
+        calculate_shortest_path(pl.col("from"), pl.col("to"), pl.col("weight"), directed=directed).alias("paths")
+    ).unnest("paths")
+    return sorted((row["from"], row["to"], round(row["distance"], 6)) for row in result.to_dicts())
+
+
 def test_directed_path() -> None:
     """
     Test the calculate_shortest_path function with directed edges.
     Verifies that path distances are asymmetric when the graph is directed,
-    and that the function correctly handles different path weights in each direction.
+    and asserts the exact row set so that a duplicated or missing pair fails.
     """
     df = pl.DataFrame({"from": ["A", "B", "B", "C"], "to": ["B", "C", "A", "A"], "weight": [1.0, 2.0, 3.0, 4.0]})
 
-    result = df.select(
-        calculate_shortest_path(pl.col("from"), pl.col("to"), pl.col("weight"), directed=True).alias("paths")
-    ).unnest("paths")
+    assert _path_rows(df, directed=True) == [
+        ("A", "B", 1.0),
+        ("A", "C", 3.0),
+        ("B", "A", 3.0),
+        ("B", "C", 2.0),
+        ("C", "A", 4.0),
+        ("C", "B", 5.0),
+    ]
 
-    # Verify asymmetric paths
-    paths_dict = {(row["from"], row["to"]): row["distance"] for row in result.to_dicts()}
 
-    # A → B should be 1.0
-    assert abs(paths_dict[("A", "B")] - 1.0) < 1e-6
-    # B → A should be 3.0 (direct path)
-    assert abs(paths_dict[("B", "A")] - 3.0) < 1e-6
+def test_directed_path_branching_dag_exact_rows() -> None:
+    """
+    Assert the exact row set of a branching DAG in both directed and undirected mode.
+
+    The graph is a -> b, a -> c, b -> d with no parallel edges, so every reachable pair
+    has exactly one row. Branching makes the two modes differ in row count as well as in
+    content: b and c are mutually unreachable when directed, adjacent when not.
+    """
+    df = pl.DataFrame({"from": ["a", "a", "b"], "to": ["b", "c", "d"], "weight": [1.0, 2.0, 3.0]})
+
+    assert _path_rows(df, directed=True) == [
+        ("a", "b", 1.0),
+        ("a", "c", 2.0),
+        ("a", "d", 4.0),
+        ("b", "d", 3.0),
+    ]
+
+    assert _path_rows(df, directed=False) == [
+        ("a", "b", 1.0),
+        ("a", "c", 2.0),
+        ("a", "d", 4.0),
+        ("b", "c", 3.0),
+        ("b", "d", 3.0),
+        ("c", "d", 6.0),
+    ]
+
+
+def test_directed_path_emits_each_pair_once() -> None:
+    """
+    Regression test: a directed result must contain each (from, to) pair exactly once.
+
+    Released 0.5.0 emitted every reachable directed pair twice, because the loop over
+    ordered pairs and a second reverse-direction pass both pushed the same row.
+    """
+    df = pl.DataFrame(
+        {
+            "from": ["bike", "bike", "frame", "wheel", "wheel", "hub"],
+            "to": ["frame", "wheel", "tube", "spoke", "hub", "bearing"],
+            "weight": [1.0] * 6,
+        }
+    )
+
+    rows = _path_rows(df, directed=True)
+    assert len(rows) == len({(start, end) for start, end, _ in rows})
+    assert len(rows) == 11
+
+    # The same 7-node graph is fully connected when undirected: all 7 * 6 / 2 pairs.
+    undirected_rows = _path_rows(df, directed=False)
+    assert len(undirected_rows) == len({(start, end) for start, end, _ in undirected_rows})
+    assert len(undirected_rows) == 21
 
 
 def test_cycle_path() -> None:
@@ -431,6 +493,67 @@ def test_cycle_path() -> None:
 
     # A → C should choose shorter path (A → B → C = 2.0) over direct path (3.0)
     assert abs(paths_dict[("A", "C")] - 2.0) < 1e-6
+    assert len(result) == len(paths_dict)
+
+
+def test_shortest_path_simple_cycle() -> None:
+    """
+    Test a strongly connected 3-cycle a -> b -> c -> a.
+
+    Verifies that the traversal terminates on a cyclic graph and that the directed result
+    holds every ordered pair exactly once, with the wrap-around distances.
+    """
+    df = pl.DataFrame({"from": ["a", "b", "c"], "to": ["b", "c", "a"], "weight": [1.0, 1.0, 1.0]})
+
+    assert _path_rows(df, directed=True) == [
+        ("a", "b", 1.0),
+        ("a", "c", 2.0),
+        ("b", "a", 2.0),
+        ("b", "c", 1.0),
+        ("c", "a", 1.0),
+        ("c", "b", 2.0),
+    ]
+
+    assert _path_rows(df, directed=False) == [
+        ("a", "b", 1.0),
+        ("a", "c", 1.0),
+        ("b", "c", 1.0),
+    ]
+
+
+def test_shortest_path_scalar_weight_is_broadcast() -> None:
+    """
+    Test that a length-1 weights argument is broadcast across every edge.
+
+    A scalar such as pl.lit(1.0) must behave like a column of that value repeated per
+    edge, rather than being zipped against the node columns and truncating the graph.
+    """
+    df = pl.DataFrame({"from": ["a", "a", "b"], "to": ["b", "c", "d"], "weight": [1.0, 1.0, 1.0]})
+
+    scalar_result = df.select(
+        calculate_shortest_path(pl.col("from"), pl.col("to"), pl.lit(1.0), directed=True).alias("paths")
+    ).unnest("paths")
+    scalar_rows = sorted((row["from"], row["to"], round(row["distance"], 6)) for row in scalar_result.to_dicts())
+
+    assert scalar_rows == _path_rows(df, directed=True)
+    assert scalar_rows == [("a", "b", 1.0), ("a", "c", 1.0), ("a", "d", 2.0), ("b", "d", 1.0)]
+
+
+def test_shortest_path_mismatched_weight_length_raises() -> None:
+    """
+    Test that a weights argument of the wrong length raises instead of truncating.
+
+    Any length other than the edge count or 1 is ambiguous, so it must be an error
+    rather than a silently shortened edge list.
+    """
+    df = pl.DataFrame({"from": ["a", "a", "b"], "to": ["b", "c", "d"], "weight": [1.0, 1.0, 1.0]})
+
+    with pytest.raises(pl.exceptions.ComputeError, match="expected 3"):
+        df.select(
+            calculate_shortest_path(pl.col("from"), pl.col("to"), pl.Series("w", [1.0, 2.0]), directed=True).alias(
+                "paths"
+            )
+        ).unnest("paths")
 
 
 def test_calculate_path_empty_graph() -> None:
@@ -439,8 +562,17 @@ def test_calculate_path_empty_graph() -> None:
     Verifies that the function handles the edge case of an empty input
     DataFrame gracefully and returns an empty result.
     """
-    # Implement test for when the graph is empty
-    ...
+    df = pl.DataFrame(
+        {"from": [], "to": [], "weight": []},
+        schema={"from": pl.String, "to": pl.String, "weight": pl.Float64},
+    )
+
+    for directed in (True, False):
+        result = df.select(
+            calculate_shortest_path(pl.col("from"), pl.col("to"), pl.col("weight"), directed=directed).alias("paths")
+        ).unnest("paths")
+        assert result.height == 0
+        assert result.columns == ["from", "to", "distance"]
 
 
 if __name__ == "__main__":
