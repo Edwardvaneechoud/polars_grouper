@@ -270,7 +270,6 @@ def test_general_ledger_roll_up() -> None:
     lowest level and sum per higher-level account. There are no quantities, so none is passed. Account
     numbers stay integers, so the join to the journal needs no casting.
     """
-    breakpoint()
     chart_of_accounts = pl.LazyFrame(
         {"parent_account": [1000, 1000, 1100, 1100, 1200], "account": [1100, 1200, 1110, 1120, 1210]}
     )
