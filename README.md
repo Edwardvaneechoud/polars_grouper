@@ -10,6 +10,12 @@ PolarsGrouper is a Rust-based extension for Polars that provides efficient graph
 - Efficient implementation using Rust and Polars
 - Works with both eager and lazy Polars DataFrames
 
+### Hierarchy / BOM Explosion
+- `hierarchy_totals`, `hierarchy_levels`, `hierarchy_paths`: explode a parent → child edge list
+  (bill of materials, chart of accounts, WBS) into its transitive closure, with quantities
+  rolled up along every path
+- Replaces `WITH RECURSIVE` / `CONNECT BY` queries and for-loops, and runs inside lazy queries
+
 ### Additional Graph Analytics
 - **Shortest Path Analysis**: Find shortest paths between nodes
 - **PageRank**: Calculate node importance scores
@@ -66,6 +72,62 @@ result = super_merger_weighted(
     weight_threshold=0.3
 )
 print(result)
+```
+
+### Hierarchy / BOM Explosion
+
+Resolve a bill of materials in one lazy expression. Quantities multiply along a path
+(4 wheels × 5 screws) and add up across paths (+ 20 screws directly on the car):
+
+```python
+import polars as pl
+from polars_grouper import hierarchy_totals, hierarchy_levels, hierarchy_paths
+
+bom = pl.LazyFrame({
+    "parent": ["car", "car", "car", "wheel", "wheel", "wheel", "rim"],
+    "child": ["wheel", "steering_wheel", "screw", "tyre", "rim", "screw", "iron"],
+    "qty": [4.0, 1.0, 20.0, 1.0, 1.0, 5.0, 2.5],
+})
+
+totals = bom.select(hierarchy_totals("parent", "child", "qty").alias("bom")).unnest("bom")
+
+# Raw materials needed for one car
+totals.filter(pl.col("ancestor") == "car", pl.col("is_leaf")).collect()
+# ┌──────────┬────────────────┬───────┬──────────┬─────────┐
+# │ ancestor ┆ descendant     ┆ level ┆ quantity ┆ is_leaf │
+# ╞══════════╪════════════════╪═══════╪══════════╪═════════╡
+# │ car      ┆ steering_wheel ┆ 1     ┆ 1.0      ┆ true    │
+# │ car      ┆ screw          ┆ 1     ┆ 40.0     ┆ true    │
+# │ car      ┆ tyre           ┆ 2     ┆ 4.0      ┆ true    │
+# │ car      ┆ iron           ┆ 3     ┆ 10.0     ┆ true    │
+# └──────────┴────────────────┴───────┴──────────┴─────────┘
+```
+
+Three functions, one per level of detail. They share column names, so each is an aggregation
+of the next:
+
+| function | one row per | extra columns |
+|---|---|---|
+| `hierarchy_totals` | ancestor, descendant | `level` is the shallowest level |
+| `hierarchy_levels` | ancestor, descendant, level | |
+| `hierarchy_paths` | path (an indented BOM) | `parent`, `quantity_per`, `path` |
+
+All three take `top_level_only` (explode finished products only), `include_self` (add a
+level-0 row per node) and `max_depth`. A cycle in the data raises an error that names it.
+
+The same works for any hierarchy. To roll up general-ledger balances along a chart of accounts,
+link every account to itself and to everything below it, then aggregate:
+
+```python
+closure = accounts.select(
+    hierarchy_totals("parent_account", "account", include_self=True).alias("closure")
+).unnest("closure")
+
+balances = (
+    closure.join(transactions, left_on="descendant", right_on="account")
+    .group_by("ancestor")
+    .agg(pl.col("amount").sum())
+)
 ```
 
 ### Additional Graph Analytics

@@ -7,6 +7,8 @@ use std::convert::TryFrom;
 type NodeMap<T> = FxHashMap<String, T>;
 type EdgeList<T> = SmallVec<[(T, T); 1024]>;
 type ProcessResult<T> = PolarsResult<(NodeMap<T>, T, EdgeList<T>)>;
+type WeightedEdgeList<T> = Vec<(T, T, f64)>;
+type WeightedProcessResult<T> = PolarsResult<(NodeMap<T>, T, WeightedEdgeList<T>)>;
 
 // Rest of the traits and implementations remain the same...
 pub trait AsUsize {
@@ -95,6 +97,40 @@ where
             }
             Ok(())
         })?;
+
+    Ok((node_to_id, id_counter, edges))
+}
+
+/// Intern the nodes of a weighted edge list, keeping one weight per edge.
+///
+/// Rows with a null endpoint are skipped, as in `process_edges`. A null weight on an
+/// otherwise complete edge is an error instead: dropping that edge would silently drop
+/// everything that is only reachable through it.
+pub fn process_weighted_edges<T>(
+    from: &StringChunked,
+    to: &StringChunked,
+    weights: &Float64Chunked,
+    weight_role: &str,
+) -> WeightedProcessResult<T>
+where
+    T: TryFrom<usize> + Copy + PartialEq + AsUsize,
+    <T as TryFrom<usize>>::Error: std::fmt::Debug,
+{
+    let mut node_to_id: NodeMap<T> = FxHashMap::default();
+    let mut id_counter: T = usize_to_t(0);
+    let mut edges = Vec::with_capacity(from.len());
+
+    for ((from_node, to_node), weight) in from.iter().zip(to.iter()).zip(weights.iter()) {
+        let (Some(f), Some(t)) = (from_node, to_node) else {
+            continue;
+        };
+        let Some(w) = weight else {
+            polars_bail!(ComputeError: "`{}` is null for the edge {} -> {}", weight_role, f, t);
+        };
+        let f_id = get_or_insert_id(f, &mut node_to_id, &mut id_counter);
+        let t_id = get_or_insert_id(t, &mut node_to_id, &mut id_counter);
+        edges.push((f_id, t_id, w));
+    }
 
     Ok((node_to_id, id_counter, edges))
 }

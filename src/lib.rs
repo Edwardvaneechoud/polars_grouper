@@ -2,6 +2,7 @@ mod association_rule_graph_mining;
 mod graph_betweenness_centrality;
 mod graph_solver;
 mod graph_utils;
+mod hierarchy;
 mod page_rank;
 mod shortest_path;
 
