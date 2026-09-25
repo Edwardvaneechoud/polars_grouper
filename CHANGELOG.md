@@ -2,6 +2,18 @@
 
 All notable changes to `polars-grouper` are documented here.
 
+## Unreleased
+
+### Added
+
+- **Hierarchy / bill-of-materials explosion**: `hierarchy_totals`, `hierarchy_levels` and
+  `hierarchy_paths` resolve the transitive closure of a `parent -> child` edge list in a single
+  (lazy) expression, replacing `WITH RECURSIVE` queries and for-loops. Quantities multiply along
+  each path and add up across paths. The three functions return the same explosion at
+  increasing detail: one row per ancestor/descendant pair, per pair and level, or per path
+  (an indented BOM with the full `path` list). Options: `top_level_only`, `include_self` and
+  `max_depth`. A cycle raises an error that names it, and integer node ids keep their dtype.
+
 ## 0.5.1
 
 ### Fixed

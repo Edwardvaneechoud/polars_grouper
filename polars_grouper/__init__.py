@@ -552,3 +552,273 @@ def graph_association_rules(
             "weighted": weighted,
         },
     )
+
+
+def _hierarchy_function(
+    function_name: str,
+    parent: IntoExpr,
+    child: IntoExpr,
+    quantity: IntoExpr | None,
+    top_level_only: bool,
+    include_self: bool,
+    max_depth: int | None,
+) -> pl.Expr:
+    if max_depth is not None and max_depth < 0:
+        raise ValueError(f"max_depth must be non-negative, got {max_depth}")
+    return register_plugin_function(
+        args=[parent, child, pl.lit(1.0) if quantity is None else quantity],
+        plugin_path=LIB,
+        function_name=function_name,
+        is_elementwise=False,
+        changes_length=True,
+        kwargs={"top_level_only": top_level_only, "include_self": include_self, "max_depth": max_depth},
+    )
+
+
+def hierarchy_totals(
+    parent: IntoExpr,
+    child: IntoExpr,
+    quantity: IntoExpr | None = None,
+    *,
+    top_level_only: bool = False,
+    include_self: bool = False,
+    max_depth: int | None = None,
+) -> pl.Expr:
+    """
+    Explode a hierarchy (e.g. a bill of materials) into rolled-up totals per ancestor and descendant.
+
+    Resolves the transitive closure of a ``parent -> child`` edge list without loops or recursive
+    SQL: every ancestor gets one row for each component anywhere below it. Quantities multiply
+    along a path and add up across paths, so a car with 20 screws of its own and 4 wheels of
+    5 screws each needs 40 screws.
+
+    Parameters
+    ----------
+    parent : IntoExpr
+        Expression with the parent (assembly) of each edge.
+    child : IntoExpr
+        Expression with the child (component) of each edge.
+    quantity : IntoExpr, optional
+        Quantity of ``child`` per one ``parent``. A scalar is applied to every edge. When omitted,
+        every edge counts once, so ``quantity`` is the number of distinct paths.
+    top_level_only : bool, default False
+        Only explode from nodes that never appear as a child (finished products). By default
+        every node with children is exploded, so subassemblies get their own rows too.
+    include_self : bool, default False
+        Add a level-0 row linking each node to itself with quantity 1, and explode from leaves
+        too. Useful for rollups where a node's own records count towards its total.
+    max_depth : int, optional
+        Only follow paths up to this many levels deep.
+
+    Returns
+    -------
+    pl.Expr
+        A Polars expression that resolves to a struct with one row per (ancestor, descendant):
+        - "ancestor": the node exploded from
+        - "descendant": a node below it
+        - "level": the shallowest level at which the descendant occurs (1 = direct child)
+        - "quantity": total quantity of the descendant per one ancestor, summed over all paths
+        - "is_leaf": whether the descendant has no children (a raw material or purchased part)
+
+    Examples
+    --------
+    >>> import polars as pl
+    >>> bom = pl.DataFrame({
+    ...     "parent": ["car", "car", "wheel", "wheel"],
+    ...     "child": ["wheel", "screw", "screw", "tyre"],
+    ...     "qty": [4, 20, 5, 1],
+    ... })
+    >>> bom.select(hierarchy_totals("parent", "child", "qty").alias("bom")).unnest("bom")
+    shape: (5, 5)
+    ┌──────────┬────────────┬───────┬──────────┬─────────┐
+    │ ancestor ┆ descendant ┆ level ┆ quantity ┆ is_leaf │
+    │ ---      ┆ ---        ┆ ---   ┆ ---      ┆ ---     │
+    │ str      ┆ str        ┆ u32   ┆ f64      ┆ bool    │
+    ╞══════════╪════════════╪═══════╪══════════╪═════════╡
+    │ car      ┆ wheel      ┆ 1     ┆ 4.0      ┆ false   │
+    │ car      ┆ screw      ┆ 1     ┆ 40.0     ┆ true    │
+    │ car      ┆ tyre       ┆ 2     ┆ 4.0      ┆ true    │
+    │ wheel    ┆ screw      ┆ 1     ┆ 5.0      ┆ true    │
+    │ wheel    ┆ tyre       ┆ 1     ┆ 1.0      ┆ true    │
+    └──────────┴────────────┴───────┴──────────┴─────────┘
+
+    Notes
+    -----
+    - Output size is bounded by the number of (ancestor, descendant) pairs, however much the
+      structure shares subassemblies. See `hierarchy_levels` and `hierarchy_paths` for the same
+      explosion with more detail.
+    - A cycle (an item that is its own component somewhere below itself) raises an error naming it.
+    - Rows with a null parent or child are ignored; a null quantity raises an error.
+    - Integer and string node ids keep their dtype when parent and child share it; anything else
+      is returned as strings.
+    - Works in lazy queries; the whole edge list is processed at once.
+
+    """
+    return _hierarchy_function("hierarchy_totals", parent, child, quantity, top_level_only, include_self, max_depth)
+
+
+def hierarchy_levels(
+    parent: IntoExpr,
+    child: IntoExpr,
+    quantity: IntoExpr | None = None,
+    *,
+    top_level_only: bool = False,
+    include_self: bool = False,
+    max_depth: int | None = None,
+) -> pl.Expr:
+    """
+    Explode a hierarchy (e.g. a bill of materials) into quantities per ancestor, descendant and level.
+
+    Like `hierarchy_totals`, but a descendant that occurs at several depths below the same ancestor
+    gets one row per level instead of a single total. This is the result of a ``WITH RECURSIVE``
+    explosion grouped by level.
+
+    Parameters
+    ----------
+    parent : IntoExpr
+        Expression with the parent (assembly) of each edge.
+    child : IntoExpr
+        Expression with the child (component) of each edge.
+    quantity : IntoExpr, optional
+        Quantity of ``child`` per one ``parent``. A scalar is applied to every edge. When omitted,
+        every edge counts once, so ``quantity`` is the number of distinct paths.
+    top_level_only : bool, default False
+        Only explode from nodes that never appear as a child (finished products). By default
+        every node with children is exploded, so subassemblies get their own rows too.
+    include_self : bool, default False
+        Add a level-0 row linking each node to itself with quantity 1, and explode from leaves too.
+    max_depth : int, optional
+        Only follow paths up to this many levels deep.
+
+    Returns
+    -------
+    pl.Expr
+        A Polars expression that resolves to a struct with one row per (ancestor, descendant, level):
+        - "ancestor": the node exploded from
+        - "descendant": a node below it
+        - "level": the path length from ancestor to descendant (1 = direct child)
+        - "quantity": quantity of the descendant per one ancestor, summed over the paths of this length
+        - "is_leaf": whether the descendant has no children (a raw material or purchased part)
+
+    Examples
+    --------
+    >>> import polars as pl
+    >>> bom = pl.DataFrame({
+    ...     "parent": ["car", "car", "wheel", "wheel"],
+    ...     "child": ["wheel", "screw", "screw", "tyre"],
+    ...     "qty": [4, 20, 5, 1],
+    ... })
+    >>> bom.select(hierarchy_levels("parent", "child", "qty").alias("bom")).unnest("bom")
+    shape: (6, 5)
+    ┌──────────┬────────────┬───────┬──────────┬─────────┐
+    │ ancestor ┆ descendant ┆ level ┆ quantity ┆ is_leaf │
+    │ ---      ┆ ---        ┆ ---   ┆ ---      ┆ ---     │
+    │ str      ┆ str        ┆ u32   ┆ f64      ┆ bool    │
+    ╞══════════╪════════════╪═══════╪══════════╪═════════╡
+    │ car      ┆ wheel      ┆ 1     ┆ 4.0      ┆ false   │
+    │ car      ┆ screw      ┆ 1     ┆ 20.0     ┆ true    │
+    │ car      ┆ screw      ┆ 2     ┆ 20.0     ┆ true    │
+    │ car      ┆ tyre       ┆ 2     ┆ 4.0      ┆ true    │
+    │ wheel    ┆ screw      ┆ 1     ┆ 5.0      ┆ true    │
+    │ wheel    ┆ tyre       ┆ 1     ┆ 1.0      ┆ true    │
+    └──────────┴────────────┴───────┴──────────┴─────────┘
+
+    Notes
+    -----
+    - Grouping by (ancestor, descendant) and summing ``quantity`` gives `hierarchy_totals`.
+    - Output size is bounded by the number of (ancestor, descendant, level) combinations.
+    - A cycle raises an error naming it; rows with a null parent or child are ignored and a null
+      quantity raises an error.
+
+    """
+    return _hierarchy_function("hierarchy_levels", parent, child, quantity, top_level_only, include_self, max_depth)
+
+
+def hierarchy_paths(
+    parent: IntoExpr,
+    child: IntoExpr,
+    quantity: IntoExpr | None = None,
+    *,
+    top_level_only: bool = False,
+    include_self: bool = False,
+    max_depth: int | None = None,
+) -> pl.Expr:
+    """
+    Explode a hierarchy (e.g. a bill of materials) into one row per path, like an indented BOM.
+
+    The most detailed of the hierarchy explosions: every route from an ancestor down to a
+    descendant is a row with its full path, its immediate parent and the quantity on that last
+    line. The other explosions are aggregations of this one.
+
+    Parameters
+    ----------
+    parent : IntoExpr
+        Expression with the parent (assembly) of each edge.
+    child : IntoExpr
+        Expression with the child (component) of each edge.
+    quantity : IntoExpr, optional
+        Quantity of ``child`` per one ``parent``. A scalar is applied to every edge. When omitted,
+        every edge counts as 1.
+    top_level_only : bool, default False
+        Only explode from nodes that never appear as a child (finished products). By default
+        every node with children is exploded, so subassemblies get their own rows too.
+    include_self : bool, default False
+        Add a level-0 row per exploded node (null parent, quantity 1), and explode from leaves too.
+    max_depth : int, optional
+        Only follow paths up to this many levels deep.
+
+    Returns
+    -------
+    pl.Expr
+        A Polars expression that resolves to a struct with one row per path:
+        - "ancestor": the node the path starts from
+        - "descendant": the node the path ends at
+        - "level": the path length (1 = direct child)
+        - "parent": the descendant's immediate parent on this path
+        - "quantity_per": quantity on the last edge (descendant per one parent)
+        - "quantity": quantity of the descendant per one ancestor along this path
+        - "is_leaf": whether the descendant has no children (a raw material or purchased part)
+        - "path": list of the nodes from ancestor to descendant
+
+    Examples
+    --------
+    >>> import polars as pl
+    >>> bom = pl.DataFrame({
+    ...     "parent": ["car", "car", "wheel", "wheel"],
+    ...     "child": ["wheel", "screw", "screw", "tyre"],
+    ...     "qty": [4, 20, 5, 1],
+    ... })
+    >>> paths = bom.select(
+    ...     hierarchy_paths("parent", "child", "qty", top_level_only=True).alias("bom")
+    ... ).unnest("bom")
+    >>> paths.select("descendant", "level", "parent", "quantity", "path")
+    shape: (4, 5)
+    ┌────────────┬───────┬────────┬──────────┬───────────────────────────┐
+    │ descendant ┆ level ┆ parent ┆ quantity ┆ path                      │
+    │ ---        ┆ ---   ┆ ---    ┆ ---      ┆ ---                       │
+    │ str        ┆ u32   ┆ str    ┆ f64      ┆ list[str]                 │
+    ╞════════════╪═══════╪════════╪══════════╪═══════════════════════════╡
+    │ wheel      ┆ 1     ┆ car    ┆ 4.0      ┆ ["car", "wheel"]          │
+    │ screw      ┆ 2     ┆ wheel  ┆ 20.0     ┆ ["car", "wheel", "screw"] │
+    │ tyre       ┆ 2     ┆ wheel  ┆ 4.0      ┆ ["car", "wheel", "tyre"]  │
+    │ screw      ┆ 1     ┆ car    ┆ 20.0     ┆ ["car", "screw"]          │
+    └────────────┴───────┴────────┴──────────┴───────────────────────────┘
+
+    Aggregating the paths gives the other explosions:
+
+    >>> totals = paths.group_by("ancestor", "descendant").agg(pl.col("quantity").sum(), pl.col("level").min())
+    >>> levels = paths.group_by("ancestor", "descendant", "level").agg(pl.col("quantity").sum())
+
+    Notes
+    -----
+    - Rows are in depth-first order per ancestor, which reads as an indented bill of materials.
+    - There is one row per path, not per pair: a component inside a subassembly that is reused in
+      many places gets a row for every route to it. Trees (charts of accounts, WBS, org charts)
+      have exactly one path per pair; for heavily shared structures prefer `hierarchy_totals` or
+      limit the output with ``top_level_only`` and ``max_depth``.
+    - Duplicate edges are separate paths.
+    - A cycle raises an error naming it; rows with a null parent or child are ignored and a null
+      quantity raises an error.
+
+    """
+    return _hierarchy_function("hierarchy_paths", parent, child, quantity, top_level_only, include_self, max_depth)
