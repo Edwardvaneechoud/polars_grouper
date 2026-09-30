@@ -103,7 +103,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64, x86]
+        # aarch64 is cross-compiled in maturin-action's manylinux container.
+        # It covers Docker on Apple Silicon (linux/arm64) and Graviton;
+        # linux_aarch64_test checks it keeps the manylinux_2_17 baseline.
+        target: [x86_64, x86, aarch64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -123,6 +126,38 @@ jobs:
         with:
           name: wheels-linux-${{ matrix.target }}
           path: dist
+
+  # The aarch64 wheel is cross-compiled, so nothing above ever runs it. Install
+  # it the way a linux/arm64 Docker user would -- binary-only, in a slim image
+  # with no Rust or C compiler -- on a native arm64 runner, and run the test
+  # suite against it. The tests check fixed expected values, so a pass here
+  # means the wheel computes the same results as the x86_64 build.
+  linux_aarch64_test:
+    needs: [linux]
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-aarch64
+          path: dist
+      - name: Check wheel tags
+        run: ls dist/polars_grouper-*-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+      # Only tests/ is mounted, so the source package cannot shadow the
+      # installed wheel. requirements.txt pins the same Polars as linux_tests.
+      - name: Install wheel and run tests in python:3.12-slim
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD/dist:/dist:ro" \
+            -v "$PWD/tests:/work/tests:ro" \
+            -v "$PWD/requirements.txt:/work/requirements.txt:ro" \
+            -w /work \
+            python:3.12-slim \
+            bash -euxc '
+              pip install --only-binary=:all: -c requirements.txt pytest /dist/*.whl
+              python -c "import platform, polars_grouper; print(platform.machine(), polars_grouper.__version__)"
+              python -m pytest tests -p no:cacheprovider
+            '
 
   windows:
     runs-on: windows-latest
@@ -193,7 +228,7 @@ jobs:
   release:
     name: Release
     if: "startsWith(github.ref, 'refs/tags/')"
-    needs: [linux, windows, macos, sdist]
+    needs: [linux, linux_aarch64_test, windows, macos, sdist]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

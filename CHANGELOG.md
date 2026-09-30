@@ -2,7 +2,25 @@
 
 All notable changes to `polars-grouper` are documented here.
 
-## Unreleased
+## 0.6.1
+
+### Added
+
+- **Linux aarch64 (arm64) wheel.** Releases now include a
+  `cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64` wheel, with the same abi3 tag and
+  glibc baseline as the x86_64 one. `pip install polars-grouper` on linux/arm64 (Docker on
+  Apple Silicon, AWS Graviton) no longer falls back to the sdist, so it no longer needs a Rust
+  toolchain and a C compiler. Before publishing, CI installs this wheel in `python:3.12-slim`
+  on an arm64 runner and runs the test suite against it.
+
+### Fixed
+
+- `polars_grouper.__version__` reported `0.5.1` in the 0.6.0 release. It now matches the
+  package version.
+
+No API changes. The supported Polars range is unchanged.
+
+## 0.6.0
 
 ### Added
 
