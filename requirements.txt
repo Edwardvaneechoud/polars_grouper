@@ -3,7 +3,9 @@
 # Pinned so an upstream Polars release cannot turn the blocking CI job red for
 # reasons unrelated to the change under test; the `latest_polars_test` job in
 # .github/workflows/publish_to_pypi.yml covers newer releases instead.
-polars==1.43.0
+polars==2.1.0; python_version >= "3.11"
+# Polars 2.1 requires Python 3.11+; 3.10 gets the newest Polars it can install.
+polars==2.0.0; python_version < "3.11"
 maturin~=1.7
 ruff~=0.7.0
 pytest~=8.3.3
