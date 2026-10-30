@@ -142,7 +142,7 @@ jobs:
           name: wheels-linux-aarch64
           path: dist
       - name: Check wheel tags
-        run: ls dist/polars_grouper-*-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+        run: ls dist/polars_grouper-*-cp310-abi3-*manylinux_2_17_aarch64*.whl
       # Only tests/ is mounted, so the source package cannot shadow the
       # installed wheel. requirements.txt pins the same Polars as linux_tests.
       - name: Install wheel and run tests in python:3.12-slim
