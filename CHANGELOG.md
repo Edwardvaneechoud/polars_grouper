@@ -2,6 +2,16 @@
 
 All notable changes to `polars-grouper` are documented here.
 
+## 0.6.2
+
+### Changed
+
+- **Polars 2 is supported.** The dependency is now `polars>=1.39.0,<3.0.0`. The plugin is
+  unchanged: the 0.6.1 build passes the full test suite on Polars 1.39, 1.43 and 2.1.
+- CI also tests Python 3.14.
+
+No API changes.
+
 ## 0.6.1
 
 ### Added

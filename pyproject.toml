@@ -4,14 +4,14 @@ build-backend = "maturin"
 
 [project]
 name = "polars-grouper"
-version = "0.6.1"
+version = "0.6.2"
 description = "High-performance graph analysis and pattern mining extension for Polars"
 authors = [
     { name = "Edward Vaneechoud", email = "evaneechoud@gmail.com" }
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "polars>=1.39.0,<2.0.0",
+    "polars>=1.39.0,<3.0.0",
 ]
 license = "MIT"
 readme = "README.md"
