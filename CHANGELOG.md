@@ -4,13 +4,15 @@ All notable changes to `polars-grouper` are documented here.
 
 ## 0.7.0
 
-A minor release because a new major version of Polars is now supported.
+Polars 2 only. A minor release because it drops Polars 1; stay on 0.6.1 if you need Polars 1.
 
 ### Changed
 
-- **Polars 2 is supported.** The dependency is now `polars>=1.39.0,<3.0.0`. The plugin is
-  unchanged: the 0.6.1 build passes the full test suite on Polars 1.39, 1.43 and 2.1.
-- CI also tests Python 3.14.
+- **Requires Polars 2.** The dependency is now `polars>=2.0.0,<3.0.0` (was `>=1.39.0,<2.0.0`).
+- The plugin is built on the newest Polars crates: `polars` 0.55, `pyo3-polars` 0.28 and
+  `pyo3` 0.29.2 (were 0.53, 0.26 and 0.27). `pyo3` is pinned to 0.29.2 because
+  0.29.3 crashes on import. Building from source needs Rust 1.95 or newer.
+- CI also tests Python 3.14, and the pinned dev/CI baseline is now Polars 2.1.0.
 
 No API changes.
 
