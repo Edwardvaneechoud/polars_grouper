@@ -2,7 +2,9 @@
 
 All notable changes to `polars-grouper` are documented here.
 
-## 0.6.2
+## 0.7.0
+
+A minor release because a new major version of Polars is now supported.
 
 ### Changed
 
