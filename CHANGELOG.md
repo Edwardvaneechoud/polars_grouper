@@ -12,7 +12,8 @@ Polars 2 only. A minor release because it drops Polars 1; stay on 0.6.1 if you n
 - The plugin is built on the newest Polars crates: `polars` 0.55, `pyo3-polars` 0.28 and
   `pyo3` 0.29.2 (were 0.53, 0.26 and 0.27). `pyo3` is pinned to 0.29.2 because
   0.29.3 crashes on import. Building from source needs Rust 1.95 or newer.
-- CI also tests Python 3.14, and the pinned dev/CI baseline is now Polars 2.1.0.
+- CI also tests Python 3.14, and the pinned dev/CI baseline is now Polars 2.1.0
+  (2.0.0 on Python 3.10, which Polars 2.1 no longer supports).
 
 No API changes.
 
